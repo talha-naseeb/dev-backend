@@ -3,7 +3,6 @@ const validator = require("validator");
 const User = require("../models/user.model.js");
 const jwt = require("jsonwebtoken");
 
-
 // 🔹 Basic Request Validation
 exports.validateLoginAuth = (req, res, next) => {
   const { email, password } = req.body;
@@ -26,7 +25,7 @@ exports.validateLoginAuth = (req, res, next) => {
 
 // signUp Validation
 exports.validateSignUpAuth = (req, res, next) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, mobileNumber, password, role } = req.body;
   const errors = [];
 
   // Validate name
@@ -36,6 +35,9 @@ exports.validateSignUpAuth = (req, res, next) => {
 
   // Validate email
   if (!email || !validator.isEmail(email)) {
+    errors.push("Please provide a valid email address");
+  }
+  if (!mobileNumber || !validator.isMobilePhone(mobileNumber)) {
     errors.push("Please provide a valid email address");
   }
 
@@ -164,4 +166,3 @@ exports.authorize = (...roles) => {
     next();
   };
 };
-

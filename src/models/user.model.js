@@ -28,7 +28,6 @@ const userSchema = new mongoose.Schema(
 
     profileImage: String,
     mobileNumber: String,
-    companyEmail: String,
     personalEmail: String,
     department: String,
     jobDescription: String,

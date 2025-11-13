@@ -12,7 +12,7 @@ const { hashPassword, comparePassword } = require("../utils/helpers/authHelpers"
 // @access  Public
 
 exports.signup = asyncHandler(async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, mobileNumber, role } = req.body;
 
   // 🔹 Check if user already exists
   const existingUser = await User.findOne({ email });
@@ -31,6 +31,7 @@ exports.signup = asyncHandler(async (req, res) => {
   const user = new User({
     name,
     email,
+    mobileNumber,
     password: hashedPassword,
     role,
     emailVerificationToken: hashedToken,
