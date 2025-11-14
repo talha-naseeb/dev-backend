@@ -21,18 +21,17 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "manager", "developer", "designer", "qualityAssurance"],
+      enum: ["admin", "manager", "employee", "developer", "designer", "qualityAssurance"],
       default: "employee",
     },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
-    profileImage: String,
     mobileNumber: String,
     personalEmail: String,
     department: String,
     jobDescription: String,
     companyName: String,
-    description: String,
+    profileImage: String,
     companyLogo: String,
 
     isVerified: {

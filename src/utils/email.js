@@ -69,7 +69,6 @@ exports.sendResetPasswordEmail = async (email, token) => {
   }
 };
 
-
 // Send Verification Email
 exports.sendVerificationEmail = async (email, token) => {
   const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
@@ -119,4 +118,56 @@ exports.sendVerificationEmail = async (email, token) => {
   await transporter.sendMail(mailOptions);
 };
 
+// Send Employee Credentials Email
+exports.sendEmployeeCredentialsEmail = async (toEmail, passwordForEmployees, verificationToken) => {
+  const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: toEmail,
+    subject: "Your Account Credentials | Developers Portal",
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; padding: 40px 0;">
+        <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background-color: #0d6efd; padding: 20px 40px; color: #ffffff; text-align: center; font-size: 24px; font-weight: bold;">
+              Dev Portal
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #333333; margin-bottom: 10px;">Welcome to Developers Portal</h2>
+              <p style="color: #555555; font-size: 15px; line-height: 1.6;">
+                Hi ${toEmail},<br><br>
+                Your account has been created successfully. Please use the credentials below to login and update your password:
+              </p>
+              <table cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
+                <tr>
+                  <td style="padding: 10px; background: #f4f6f8; border-radius: 6px;">
+                    <p style="margin: 5px 0;"><strong>Email:</strong> ${toEmail}</p>
+                    <p style="margin: 5px 0;"><strong>Password:</strong> ${passwordForEmployees}</p>
+                  </td>
+                </tr>
+              </table>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${verifyUrl}" style="background-color: #0d6efd; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; display: inline-block;">
+                  Login to Portal
+                </a>
+              </div>
+              <p style="color: #555555; font-size: 14px; line-height: 1.6;">
+                Please change your password after first login to keep your account secure.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f4f6f8; text-align: center; padding: 20px; font-size: 12px; color: #888888;">
+              © ${new Date().getFullYear()} Dev Portal. All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};

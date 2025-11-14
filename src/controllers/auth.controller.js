@@ -92,7 +92,7 @@ exports.login = asyncHandler(async (req, res) => {
   await comparePassword(password, user.password);
 
   const token = generateToken(user);
-  const response = ApiResponse.success("Login successful", { token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+  const response = ApiResponse.success("Login successful", { token });
   res.status(response.statusCode).json(response);
 });
 
