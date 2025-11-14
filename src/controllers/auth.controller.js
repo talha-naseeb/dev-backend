@@ -25,7 +25,7 @@ exports.signup = asyncHandler(async (req, res) => {
   const verificationToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
 
-  const verificationExpires = Date.now() + 1000 * 60 * 60; // 1 hour expiry
+  const verificationExpires = Date.now() + 1000 * 60 * 60;
 
   // Create user
   const user = new User({
@@ -43,6 +43,8 @@ exports.signup = asyncHandler(async (req, res) => {
 
   // Send verification email
   await sendVerificationEmail(user.email, verificationToken);
+
+  console.log("verifyToken:", verificationToken);
 
   const response = ApiResponse.created("User registered successfully. Please verify your email.");
   res.status(response.statusCode).json(response);
@@ -93,6 +95,7 @@ exports.login = asyncHandler(async (req, res) => {
 
   const token = generateToken(user);
   const response = ApiResponse.success("Login successful", { token });
+  console.log("Token Generated:", token);
   res.status(response.statusCode).json(response);
 });
 

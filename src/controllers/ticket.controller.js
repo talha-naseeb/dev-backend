@@ -1,4 +1,3 @@
-// src/controllers/ticket.controller.js
 const Ticket = require("../models/ticket.model");
 const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");

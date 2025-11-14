@@ -119,7 +119,7 @@ exports.sendVerificationEmail = async (email, token) => {
 };
 
 // Send Employee Credentials Email
-exports.sendEmployeeCredentialsEmail = async (toEmail, passwordForEmployees, verificationToken) => {
+exports.sendEmployeeCredentialsEmail = async (toEmail, plainPassword, verificationToken) => {
   const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
   const mailOptions = {
@@ -145,7 +145,7 @@ exports.sendEmployeeCredentialsEmail = async (toEmail, passwordForEmployees, ver
                 <tr>
                   <td style="padding: 10px; background: #f4f6f8; border-radius: 6px;">
                     <p style="margin: 5px 0;"><strong>Email:</strong> ${toEmail}</p>
-                    <p style="margin: 5px 0;"><strong>Password:</strong> ${passwordForEmployees}</p>
+                    <p style="margin: 5px 0;"><strong>Password:</strong> ${plainPassword}</p>
                   </td>
                 </tr>
               </table>

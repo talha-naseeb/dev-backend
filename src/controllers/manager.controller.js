@@ -1,4 +1,3 @@
-// src/controllers/manager.controller.js
 const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
@@ -6,31 +5,38 @@ const asyncHandler = require("../utils/helpers/asyncHandler");
 const crypto = require("crypto");
 const { hashPassword } = require("../utils/helpers/authHelpers");
 const { sendEmployeeCredentialsEmail } = require("../utils/email");
+const validator = require("validator");
 
 // Manager creates an employee (or Admin can use same endpoint)
+
 exports.createEmployee = asyncHandler(async (req, res) => {
+  // final server-side guard (double protection)
+  if (!["admin", "manager"].includes(req.user.role)) {
+    throw ApiError.forbidden("Only admin or manager can create employees");
+  }
+
   const { name, email, department, contactNumber, companyEmail, jobDescription } = req.body;
+
+  if (!validator.isEmail(email)) {
+    throw ApiError.badRequest("Please provide a valid email address");
+  }
   if (!name || !email) throw ApiError.badRequest("Name and email required");
 
   const exists = await User.findOne({ email });
   if (exists) throw ApiError.conflict("Email already exists");
 
-  // Hash the password
-  
-  const passwordForEmployees = crypto.randomBytes(6).toString("hex");
-  const hashedPassword = await hashPassword(passwordForEmployees);
+  // generate temporary password
+  const temporaryPassword = crypto.randomBytes(6).toString("hex") + "Aa1!";
+  const hashedPassword = await hashPassword(temporaryPassword);
 
-  // Create email verification token
+  // verification token (send raw token to user, store hashed)
   const verificationToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+  const verificationExpires = Date.now() + 1000 * 60 * 60; // 1 hour
 
-  const verificationExpires = Date.now() + 1000 * 60 * 60; 
-
-
-  // managerId: manager creates => req.user._id (unless admin specifying managerId)
+  // managerId defaulting logic
   let managerId = req.body.managerId;
-  if (!managerId) managerId = req.user.role === "manager" ? req.user._id : undefined;
-
+  if (!managerId && req.user.role === "manager") managerId = req.user._id;
 
   const user = new User({
     name,
@@ -48,11 +54,11 @@ exports.createEmployee = asyncHandler(async (req, res) => {
   });
 
   await user.save();
-  
-  // email credentials
-  await sendEmployeeCredentialsEmail(email, passwordForEmployees, verificationToken);
 
-  res.status(201).json(ApiResponse.created("Employee created and need to verify now"));
+  // send combined email (credentials + verification link)
+  await sendEmployeeCredentialsEmail(email, temporaryPassword, verificationToken);
+
+  res.status(201).json(ApiResponse.created("Employee created and verification email sent", { userId: user._id }));
 });
 
 // Manager view their team
@@ -60,9 +66,9 @@ exports.getTeam = asyncHandler(async (req, res) => {
   // manager or admin
   let team;
   if (req.user.role === "manager") {
-    team = await User.find({ manager: req.user._id }).select("-password");
+    team = await User.find({ manager: req.user._id }).select("name email role mobileNumber companyEmail department jobDescription");
   } else if (req.user.role === "admin") {
-    team = await User.find().select("-password");
+    team = await User.find().select("name email role mobileNumber companyEmail department jobDescription manager");
   } else {
     throw ApiError.forbidden("Only managers or admins can view team");
   }
@@ -72,7 +78,7 @@ exports.getTeam = asyncHandler(async (req, res) => {
 // Get single team member
 exports.getEmployee = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const user = await User.findById(id).select("-password");
+  const user = await User.findById(id).select("name email role mobileNumber companyEmail department jobDescription manager createdAt updatedAt");
   if (!user) throw ApiError.notFound("User not found");
 
   // if requester is manager, ensure ownership

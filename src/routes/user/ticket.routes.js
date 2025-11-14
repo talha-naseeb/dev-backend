@@ -1,17 +1,16 @@
-// src/routes/ticket.routes.js
 const express = require("express");
 const router = express.Router();
-const ticketController = require("../../controllers/ticket.controller");
+const { createTicket, getTickets, addComment, assignTicket } = require("../../controllers/ticket.controller");
 const { authenticate, validateUserEmail } = require("../../middleware/auth.middleware");
 
 // create ticket (employees/managers/admin)
-router.post("/", authenticate, validateUserEmail, ticketController.createTicket);
+router.post("/", authenticate, validateUserEmail, createTicket);
 
 // list tickets for requester
-router.get("/", authenticate, validateUserEmail, ticketController.getTickets);
+router.get("/", authenticate, validateUserEmail, getTickets);
 
 // single ticket ops
-router.post("/:id/comment", authenticate, validateUserEmail, ticketController.addComment);
-router.patch("/:id/assign", authenticate, validateUserEmail, ticketController.assignTicket);
+router.post("/:id/comment", authenticate, validateUserEmail, addComment);
+router.patch("/:id/assign", authenticate, validateUserEmail, assignTicket);
 
 module.exports = router;

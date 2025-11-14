@@ -20,8 +20,6 @@ exports.validateLoginAuth = (req, res, next) => {
     throw ApiError.badRequest(errors);
   }
 
-  
-
   next();
 };
 
@@ -40,7 +38,7 @@ exports.validateSignUpAuth = (req, res, next) => {
     errors.push("Please provide a valid email address");
   }
   if (!mobileNumber || !validator.isMobilePhone(mobileNumber)) {
-    errors.push("Please provide a valid email address");
+    errors.push("Please provide a valid mobile number");
   }
 
   // Validate password
@@ -120,13 +118,15 @@ exports.validateVerifyResetToken = (req, res, next) => {
 // Verify User Email Middleware
 exports.validateUserEmail = async (req, res, next) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) throw ApiError.unauthorized("User not authenticated");
+  
+    if (!req.user || !req.user._id) throw ApiError.unauthorized("User not authenticated");
 
-    const user = await User.findById(userId);
+    const user = req.user.isVerified !== undefined ? req.user : await User.findById(req.user._id);
     if (!user) throw ApiError.notFound("User not found");
 
     if (!user.isVerified) throw ApiError.forbidden("Please verify your email before accessing this resource");
+
+    if (user._id && String(user._id) === String(req.user._id)) req.user = user;
 
     next();
   } catch (error) {
@@ -145,7 +145,11 @@ exports.authenticate = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded._id);
+    // Accept either decoded.id or decoded._id for backwards compatibility
+    const userId = decoded?.id || decoded?._id || decoded?.userId;
+    if (!userId) throw ApiError.unauthorized("Token payload invalid");
+
+    const user = await User.findById(userId).select("-password");
     if (!user) throw ApiError.unauthorized("User not found");
 
     req.user = user;
@@ -161,10 +165,23 @@ exports.authenticate = async (req, res, next) => {
 // 🔹 Role-based Authorization
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    // Relies on req.user being set by 'authenticate'
-    if (!roles.includes(req.user.role)) {
+    // ensure authentication ran
+    if (!req.user) return next(ApiError.unauthorized("Not authenticated"));
+
+    // role must exist and be a string
+    const role = req.user.role;
+    if (!role || typeof role !== "string") {
+      // Log for debugging (remove in prod or use logger)
+      console.warn("Authorization check failed — missing role on user:", { userId: req.user._id, role });
+      return next(ApiError.forbidden("Insufficient permissions"));
+    }
+
+    // final check
+    if (!roles.includes(role)) {
+      console.warn("Authorization denied — user role not allowed:", { userId: req.user._id, role, required: roles });
       return next(ApiError.forbidden("You do not have permission to perform this action"));
     }
+
     next();
   };
 };

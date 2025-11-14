@@ -1,4 +1,3 @@
-// src/controllers/task.controller.js
 const Task = require("../models/task.model");
 const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");
