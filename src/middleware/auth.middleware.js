@@ -8,14 +8,16 @@ exports.validateLoginAuth = (req, res, next) => {
   const { email, password } = req.body;
   const errors = [];
 
-  if (!email || !email.includes("@")) {
-    errors.push("Valid email is required");
+  if (!email || !validator.isEmail(email)) {
+    errors.push("Please provide a valid email address");
   }
 
-  if (!password || password.length < 6) {
+  // Validate password
+  if (!password || !validator.isLength(password, { min: 6 })) {
     errors.push("Password must be at least 6 characters long");
   }
 
+  // If there are validation errors, throw an ApiError
   if (errors.length > 0) {
     throw ApiError.badRequest(errors);
   }
@@ -118,7 +120,6 @@ exports.validateVerifyResetToken = (req, res, next) => {
 // Verify User Email Middleware
 exports.validateUserEmail = async (req, res, next) => {
   try {
-  
     if (!req.user || !req.user._id) throw ApiError.unauthorized("User not authenticated");
 
     const user = req.user.isVerified !== undefined ? req.user : await User.findById(req.user._id);
@@ -165,20 +166,20 @@ exports.authenticate = async (req, res, next) => {
 // 🔹 Role-based Authorization
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    // ensure authentication ran
+
     if (!req.user) return next(ApiError.unauthorized("Not authenticated"));
 
     // role must exist and be a string
     const role = req.user.role;
     if (!role || typeof role !== "string") {
       // Log for debugging (remove in prod or use logger)
-      console.warn("Authorization check failed — missing role on user:", { userId: req.user._id, role });
+      console.log("Authorization check failed — missing role on user:", { userId: req.user._id, role });
       return next(ApiError.forbidden("Insufficient permissions"));
     }
 
     // final check
     if (!roles.includes(role)) {
-      console.warn("Authorization denied — user role not allowed:", { userId: req.user._id, role, required: roles });
+      console.log("Authorization denied — user role not allowed:", { userId: req.user._id, role, required: roles });
       return next(ApiError.forbidden("You do not have permission to perform this action"));
     }
 

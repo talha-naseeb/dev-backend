@@ -54,11 +54,11 @@ exports.updateUserProfile = asyncHandler(async (req, res) => {
 // @route   POST /api/users/logout
 // @access  Private (Authenticated)
 exports.logoutUser = asyncHandler(async (req, res) => {
-  // In JWT-based systems, logout is client-side — but you can optionally handle blacklist logic here.
   req.user = null;
   req.token = null;
 
   const response = ApiResponse.success("Logged out successfully");
+  console.log("Logout:", response);
   res.status(response.statusCode).json(response);
 });
 

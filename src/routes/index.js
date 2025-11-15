@@ -11,11 +11,12 @@ const router = express.Router();
 // Auth routes
 router.use("/auth", localAuthRoutes);
 router.use("/auth", oauthRoutes);
+
+// User routes
+router.use("/users", userProfileRoutes);
 router.use("/tasks", taskRoutes);
 router.use("/tickets", ticketRoutes);
 router.use("/manager", managerRoutes);
 
-// User routes
-router.use("/user", userProfileRoutes);
 
 module.exports = router;

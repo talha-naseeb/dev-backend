@@ -13,11 +13,9 @@ const router = express.Router();
 // User profile routes (only verified users)
 router.get("/profile", authenticate, validateUserEmail, getUserProfile);
 router.patch("/update-profile", authenticate, validateUserEmail, uploadFields, updateUserProfile);
-
-// Logout (only authenticated users)
 router.post("/logout", authenticate, logoutUser);
 
-// Admin only
+// only admin can get all users
 router.get("/all", authenticate, validateUserEmail, authorize("admin"), getAllUsers);
 
 module.exports = router;

@@ -7,6 +7,7 @@ const asyncHandler = require("../utils/helpers/asyncHandler");
 // Create a task (manager/admin)
 exports.createTask = asyncHandler(async (req, res) => {
   const { title, description, assignedTo, startDate, dueDate, priority } = req.body;
+  
   if (!title || !assignedTo || (Array.isArray(assignedTo) && assignedTo.length === 0)) {
     throw ApiError.badRequest("Title and assignedTo are required");
   }

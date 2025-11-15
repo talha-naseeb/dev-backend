@@ -112,7 +112,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   const resetToken = crypto.randomBytes(32).toString("hex");
   user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-  user.resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
+  user.resetPasswordExpires = Date.now() + 30 * 60 * 1000;
 
   await user.save();
   await sendResetPasswordEmail(user.email, resetToken);
@@ -124,6 +124,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 // @desc    Verify reset password token
 // @route   GET /api/auth/verify-reset-token?token=abc123
 // @access  Public
+
 exports.verifyResetToken = asyncHandler(async (req, res) => {
   const { token } = req.query; // get from query params
 
@@ -151,7 +152,7 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @access  Public
 exports.resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body;
+  const { password } = req.body;
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
   const user = await User.findOne({
