@@ -21,14 +21,17 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "manager", "employee", "developer", "designer", "qualityAssurance"],
+      enum: ["admin", "manager", "employee"],
       default: "employee",
     },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     mobileNumber: String,
     personalEmail: String,
-    department: String,
+    department: {
+      type: String,
+      enum: ["Developer", "Designer", "Human Resource", "Quality Assurance", "Project Manager", "Sales", "Marketing"],
+    },
     jobDescription: String,
     companyName: String,
     profileImage: String,
