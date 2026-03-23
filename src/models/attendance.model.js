@@ -15,6 +15,7 @@ const attendanceSchema = new mongoose.Schema(
     breaks: [breakSchema],
     totalHours: Number,
     status: { type: String, enum: ["present", "absent", "half-day"], default: "present" },
+    adminRef: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }
 );

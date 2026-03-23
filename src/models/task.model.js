@@ -16,6 +16,7 @@ const taskSchema = new mongoose.Schema(
     dueDate: Date,
     completedAt: Date,
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // QA
+    adminRef: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // Workspace Admin
     remarks: String,
   },
   { timestamps: true }

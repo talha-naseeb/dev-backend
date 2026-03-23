@@ -49,7 +49,7 @@ exports.validateSignUpAuth = (req, res, next) => {
   }
 
   // Validate role
-  if (role && !["admin", "manager", "employee"].includes(role)) {
+  if (role && !["super_admin", "admin", "manager", "employee", "developer"].includes(role)) {
     errors.push("Invalid role specified");
   }
 
@@ -186,3 +186,8 @@ exports.authorize = (...roles) => {
     next();
   };
 };
+
+// 🔹 Semantic Role Aliases
+exports.isAdmin = exports.authorize("admin", "super_admin");
+exports.isSuperAdmin = exports.authorize("super_admin");
+exports.isManager = exports.authorize("manager", "admin", "super_admin");

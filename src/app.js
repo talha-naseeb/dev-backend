@@ -8,6 +8,7 @@ const errorHandler = require("./utils/helpers/errorHandler");
 
 const app = express();
 
+
 // Connect to MongoDB
 connectDB();
 

@@ -15,7 +15,26 @@ exports.createEmployee = asyncHandler(async (req, res) => {
     throw ApiError.forbidden("Only admin or manager can create employees");
   }
 
-  const { name, email, department, contactNumber, companyEmail, jobDescription } = req.body;
+  const { name, email, department, contactNumber, companyEmail, jobDescription, role: requestedRole } = req.body;
+
+  // Multi-tenancy context
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (!adminId) {
+    throw ApiError.forbidden("User is not associated with a valid workspace admin");
+  }
+
+  // Get Admin's current limit
+  const workspaceAdmin = await User.findById(adminId);
+  if (!workspaceAdmin) throw ApiError.notFound("Workspace admin not found");
+
+  // Count existing employees/managers in this workspace
+  const currentCount = await User.countDocuments({ adminRef: adminId });
+  
+  if (currentCount >= workspaceAdmin.maxUsersLimit) {
+    throw ApiError.forbidden(`Limit reached: You have already created ${workspaceAdmin.maxUsersLimit} users. Please contact Super Admin to upgrade.`);
+  }
 
   if (!validator.isEmail(email)) {
     throw ApiError.badRequest("Please provide a valid email address");
@@ -42,7 +61,8 @@ exports.createEmployee = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
-    role: "employee",
+    role: requestedRole || "developer", // Default to developer
+    adminRef: adminId,
     manager: managerId,
     companyEmail: companyEmail || email,
     mobileNumber: contactNumber,
@@ -64,24 +84,38 @@ exports.createEmployee = asyncHandler(async (req, res) => {
 // Manager view their team
 exports.getTeam = asyncHandler(async (req, res) => {
   // manager or admin
-  let team;
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (!adminId) throw ApiError.forbidden("Workspace context missing");
+
+  let query = { adminRef: adminId };
   if (req.user.role === "manager") {
-    team = await User.find({ manager: req.user._id }).select("name email role mobileNumber companyEmail department jobDescription");
-  } else if (req.user.role === "admin") {
-    team = await User.find().select("name email role mobileNumber companyEmail department jobDescription manager");
-  } else {
-    throw ApiError.forbidden("Only managers or admins can view team");
+    query.manager = req.user._id;
   }
+
+  const team = await User.find(query)
+    .select("name email role mobileNumber companyEmail department jobDescription manager status")
+    .lean();
+
   res.status(200).json(ApiResponse.success("Team retrieved", { team }));
 });
 
 // Get single team member
 exports.getEmployee = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const user = await User.findById(id).select("name email role mobileNumber companyEmail department jobDescription manager createdAt updatedAt");
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  const user = await User.findById(id).select("name email role mobileNumber companyEmail department jobDescription manager createdAt updatedAt adminRef");
   if (!user) throw ApiError.notFound("User not found");
 
-  // if requester is manager, ensure ownership
+  // Ensure user belongs to this admin's workspace
+  if (String(user.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied: User belongs to a different workspace");
+  }
+
+  // if requester is manager, ensure they manage this user
   if (req.user.role === "manager" && String(user.manager) !== String(req.user._id)) {
     throw ApiError.forbidden("Not your team member");
   }

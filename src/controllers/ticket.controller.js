@@ -31,9 +31,15 @@ exports.createTicket = asyncHandler(async (req, res) => {
     }
   }
 
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (!adminId) throw ApiError.forbidden("Workspace context missing");
+
   const ticket = await Ticket.create({
     createdBy: req.user._id,
     assignedTo: assignedTo || null,
+    adminRef: adminId,
     title,
     description,
     priority,
@@ -49,12 +55,18 @@ exports.getTickets = asyncHandler(async (req, res) => {
 
   if (req.user.role === "employee" || req.user.role === "developer" || req.user.role === "designer") {
     filter.$or = [{ createdBy: req.user._id }, { assignedTo: req.user._id }];
+    filter.adminRef = req.user.adminRef;
   } else if (req.user.role === "manager") {
     // manager sees tickets for their team
     const team = await User.find({ manager: req.user._id }).select("_id");
     const teamIds = team.map((t) => t._id);
     filter.$or = [{ createdBy: { $in: teamIds } }, { assignedTo: { $in: teamIds } }];
-  } // admin/qa see all
+    filter.adminRef = req.user.adminRef;
+  } else if (req.user.role === "admin" || req.user.role === "qualityAssurance") {
+    const isAdmin = req.user.role === "admin";
+    const adminId = isAdmin ? req.user._id : req.user.adminRef;
+    filter.adminRef = adminId;
+  }
 
   if (q.status) filter.status = q.status;
   if (q.priority) filter.priority = q.priority;

@@ -33,10 +33,13 @@ exports.signup = asyncHandler(async (req, res) => {
     email,
     mobileNumber,
     password: hashedPassword,
-    role,
+    role: role || "admin", // Default to admin for public signup
     emailVerificationToken: hashedToken,
     emailVerificationExpires: verificationExpires,
     isVerified: false,
+    // Initialize limits if role is admin
+    maxUsersLimit: role === "admin" ? 3 : 0,
+    subscriptionTier: role === "admin" ? "free" : "none",
   });
 
   await user.save();

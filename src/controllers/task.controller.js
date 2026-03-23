@@ -15,17 +15,17 @@ exports.createTask = asyncHandler(async (req, res) => {
   // ensure assignedTo users exist and (if requester is manager) they are in manager's team
   const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
 
-  // If manager, ensure assignees are under same manager
-  if (req.user.role === "manager") {
-    const invalid = await User.findOne({ _id: { $in: assignees }, manager: { $ne: req.user._id } });
-    if (invalid) throw ApiError.forbidden("You can only assign tasks to your team members");
-  }
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (!adminId) throw ApiError.forbidden("Workspace context missing");
 
   const task = await Task.create({
     title,
     description,
     assignedBy: req.user._id,
     assignedTo: assignees,
+    adminRef: adminId,
     startDate,
     dueDate,
     priority,
@@ -59,6 +59,10 @@ exports.getTasks = asyncHandler(async (req, res) => {
 
   // QA and Admin: can see all tasks (admin can use query filters)
   if (req.user.role === "admin" || req.user.role === "qualityAssurance") {
+    const isAdmin = req.user.role === "admin";
+    const adminId = isAdmin ? req.user._id : req.user.adminRef;
+    filter.adminRef = adminId;
+
     // optional filters: status, priority, assignedTo
     if (q.status) filter.status = q.status;
     if (q.priority) filter.priority = q.priority;
@@ -77,6 +81,13 @@ exports.updateTask = asyncHandler(async (req, res) => {
 
   const task = await Task.findById(id);
   if (!task) throw ApiError.notFound("Task not found");
+
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (String(task.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied: Task belongs to a different workspace");
+  }
 
   // Permission checks:
   // - Employees can update only status or remarks if they are assigned

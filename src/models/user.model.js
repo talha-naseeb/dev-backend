@@ -21,10 +21,23 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "manager", "employee"],
-      default: "employee",
+      enum: ["super_admin", "admin", "manager", "employee", "developer"],
+      default: "developer",
     },
+    // Multi-tenancy: Every non-admin user must belong to an Admin's workspace
+    adminRef: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    
+    // Billing & Limits (Only applicable if role is 'admin')
+    maxUsersLimit: {
+      type: Number,
+      default: 3,
+    },
+    subscriptionTier: {
+      type: String,
+      enum: ["free", "pro", "enterprise"],
+      default: "free",
+    },
 
     mobileNumber: String,
     personalEmail: String,
@@ -47,7 +60,6 @@ const userSchema = new mongoose.Schema(
     },
     emailVerificationExpires: {
       type: Date,
-      index: true,
     },
 
     resetPasswordToken: {
@@ -56,7 +68,6 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordExpires: {
       type: Date,
-      index: true, // Add index for expiration checks
     },
 
     lastLogin: Date,
