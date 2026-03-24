@@ -155,7 +155,12 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @access  Public
 exports.resetPassword = asyncHandler(async (req, res) => {
-  const { password } = req.body;
+  const { password, token: bodyToken } = req.body;
+  const queryToken = req.query.token;
+  const token = bodyToken || queryToken;
+
+  if (!token) throw ApiError.badRequest("Token is required");
+
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
   const user = await User.findOne({

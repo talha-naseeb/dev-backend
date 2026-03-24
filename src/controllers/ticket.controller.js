@@ -3,6 +3,7 @@ const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { logActivity } = require("../utils/activityLogger");
 
 // Create ticket (employee/manager/admin)
 exports.createTicket = asyncHandler(async (req, res) => {
@@ -43,6 +44,15 @@ exports.createTicket = asyncHandler(async (req, res) => {
     title,
     description,
     priority,
+  });
+
+  // Log Activity
+  await logActivity({
+    type: "ticket_created",
+    message: `New ticket created: ${ticket.title}`,
+    userId: req.user._id,
+    adminRef: adminId,
+    metadata: { ticketId: ticket._id },
   });
 
   res.status(201).json(ApiResponse.created("Ticket created", { ticket }));
@@ -116,6 +126,18 @@ exports.assignTicket = asyncHandler(async (req, res) => {
 
   ticket.assignedTo = assignedTo;
   await ticket.save();
+
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  // Log Activity
+  await logActivity({
+    type: "ticket_updated",
+    message: `Ticket "${ticket.title}" assigned to user`,
+    userId: req.user._id,
+    adminRef: adminId,
+    metadata: { ticketId: ticket._id, assignedTo },
+  });
 
   res.status(200).json(ApiResponse.success("Ticket assigned", { ticket }));
 });

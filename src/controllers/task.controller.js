@@ -3,6 +3,7 @@ const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { logActivity } = require("../utils/activityLogger");
 
 // Create a task (manager/admin)
 exports.createTask = asyncHandler(async (req, res) => {
@@ -20,15 +21,15 @@ exports.createTask = asyncHandler(async (req, res) => {
 
   if (!adminId) throw ApiError.forbidden("Workspace context missing");
 
-  const task = await Task.create({
-    title,
-    description,
-    assignedBy: req.user._id,
-    assignedTo: assignees,
+  await task.save();
+
+  // Log Activity
+  await logActivity({
+    type: "task_created",
+    message: `New task created: ${task.title}`,
+    userId: req.user._id,
     adminRef: adminId,
-    startDate,
-    dueDate,
-    priority,
+    metadata: { taskId: task._id },
   });
 
   res.status(201).json(ApiResponse.created("Task created", { task }));
@@ -126,6 +127,17 @@ exports.updateTask = asyncHandler(async (req, res) => {
   Object.assign(task, updates);
   if (updates.status === "completed") task.completedAt = new Date();
   await task.save();
+
+  // Log Activity for status change
+  if (updates.status) {
+    await logActivity({
+      type: "task_updated",
+      message: `Task "${task.title}" status changed to ${updates.status}`,
+      userId: req.user._id,
+      adminRef: adminId,
+      metadata: { taskId: task._id, newStatus: updates.status },
+    });
+  }
 
   const populated = await Task.findById(task._id).populate("assignedBy", "name email").populate("assignedTo", "name email").populate("reviewedBy", "name email");
 

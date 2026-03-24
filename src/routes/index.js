@@ -9,8 +9,32 @@ const superAdminRoutes = require("./superAdmin.routes");
 const adminRoutes = require("./admin.routes");
 const attendanceRoutes = require("./user/attendance.routes");
 const integrationRoutes = require("./integration.routes");
+const activityRoutes = require("./activity.routes");
 
 const router = express.Router();
+
+// Global request logger
+router.use((req, res, next) => {
+  const start = Date.now();
+  const origin = req.headers.origin || req.headers.referer || req.ip;
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[API HIT] ${req.method} ${req.originalUrl} | Status: ${res.statusCode} | Time: ${duration}ms | From: ${origin}`);
+  });
+  
+  next();
+});
+
+// Overall API Health Check Endpoint
+router.get("/health", (req, res) => {
+  res.status(200).json({ 
+    success: true, 
+    message: "API routing is healthy", 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Auth routes
 router.use("/auth", localAuthRoutes);
@@ -25,6 +49,7 @@ router.use("/super-admin", superAdminRoutes);
 router.use("/admin", adminRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/integrations", integrationRoutes);
+router.use("/activities", activityRoutes);
 
 
 module.exports = router;
