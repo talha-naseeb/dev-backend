@@ -1,5 +1,5 @@
 const User = require("../models/user.model");
-const { sendResetPasswordEmail, sendVerificationEmail } = require("../utils/email");
+const { sendResetPasswordEmail, sendVerificationEmail, sendPasswordChangedEmail } = require("../utils/email");
 const ApiResponse = require("../utils/apiResponse");
 const ApiError = require("../utils/apiError");
 const asyncHandler = require("../utils/helpers/asyncHandler");
@@ -27,25 +27,28 @@ exports.signup = asyncHandler(async (req, res) => {
 
   const verificationExpires = Date.now() + 1000 * 60 * 60;
 
+  const skipVerification = process.env.SKIP_EMAIL_VERIFICATION === "true";
+
   // Create user
   const user = new User({
     name,
     email,
     mobileNumber,
     password: hashedPassword,
-    role: role || "admin", // Default to admin for public signup
-    emailVerificationToken: hashedToken,
-    emailVerificationExpires: verificationExpires,
-    isVerified: false,
-    // Initialize limits if role is admin
-    maxUsersLimit: role === "admin" ? 3 : 0,
-    subscriptionTier: role === "admin" ? "free" : "none",
+    role: "admin", // Force admin for all public signups
+    emailVerificationToken: skipVerification ? undefined : hashedToken,
+    emailVerificationExpires: skipVerification ? undefined : verificationExpires,
+    isVerified: skipVerification,
+    maxUsersLimit: 3, // Default 3-employee trial
+    subscriptionTier: "free",
   });
 
   await user.save();
 
-  // Send verification email
-  await sendVerificationEmail(user.email, verificationToken);
+  // Send verification email only if skip flag is false
+  if (!skipVerification) {
+    await sendVerificationEmail(user.email, verificationToken);
+  }
 
   console.log("verifyToken:", verificationToken);
 
@@ -93,6 +96,10 @@ exports.login = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized("User not found!");
   }
 
+  if (!user.isVerified) {
+    throw ApiError.unauthorized("Please verify your email address before logging in.");
+  }
+
   // comparePassword will throw an error if passwords don't match
   await comparePassword(password, user.password);
 
@@ -115,7 +122,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   const resetToken = crypto.randomBytes(32).toString("hex");
   user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-  user.resetPasswordExpires = Date.now() + 30 * 60 * 1000;
+  user.resetPasswordExpires = Date.now() + 24 * 60 * 60 * 1000;
 
   await user.save();
   await sendResetPasswordEmail(user.email, resetToken);
@@ -129,10 +136,11 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 // @access  Public
 
 exports.verifyResetToken = asyncHandler(async (req, res) => {
-  const { token } = req.query; // get from query params
+  const token = req.header("x-reset-token");
 
   if (!token) {
-    throw ApiError.badRequest("Token is required");
+    console.log("Verify Request Headers:", req.headers);
+    throw ApiError.badRequest("Valid reset token is required");
   }
 
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -147,7 +155,7 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
   }
 
   // Return user info (email) for frontend display
-  const response = ApiResponse.success("Token is Valid");
+  const response = ApiResponse.success("Token is Valid", { email: user.email });
   res.status(response.statusCode).json(response);
 });
 
@@ -155,11 +163,13 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @access  Public
 exports.resetPassword = asyncHandler(async (req, res) => {
-  const { password, token: bodyToken } = req.body;
-  const queryToken = req.query.token;
-  const token = bodyToken || queryToken;
+  const { password } = req.body;
+  const token = req.header("x-reset-token");
 
-  if (!token) throw ApiError.badRequest("Token is required");
+  if (!token) {
+    console.log("Reset Request Headers:", req.headers);
+    throw ApiError.badRequest("Valid reset token is required");
+  }
 
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
@@ -177,6 +187,9 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   user.resetPasswordToken = undefined;
   user.resetPasswordExpires = undefined;
   await user.save();
+
+  // Send confirmation email
+  await sendPasswordChangedEmail(user.email);
 
   const response = ApiResponse.success("Password reset successful");
   res.status(response.statusCode).json(response);

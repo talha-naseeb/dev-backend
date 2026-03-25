@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const express = require("express");
 const cors = require("cors");
 const passport = require("passport");
@@ -7,7 +8,29 @@ const routes = require("./routes");
 const errorHandler = require("./utils/helpers/errorHandler");
 
 const app = express();
+const server = require("http").createServer(app);
+const io = require("socket.io")(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
+// Store io on app for access in controllers
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+  
+  socket.on("join-workspace", (workspaceId) => {
+    socket.join(workspaceId);
+    console.log(`User joined workspace: ${workspaceId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected");
+  });
+});
 
 // Connect to MongoDB
 connectDB();
@@ -26,7 +49,7 @@ app.use("/api", routes);
 // Error handling middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 5001;
+server.listen(PORT, () => {
   console.log(`Server is running on port http://localhost:${PORT}`);
 });

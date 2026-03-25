@@ -80,7 +80,8 @@ exports.validateForgotPassword = (req, res, next) => {
 
 // 🔹 Reset Password Validation
 exports.validateResetPassword = (req, res, next) => {
-  const { token, password } = req.body;
+  const { password } = req.body;
+  const token = req.header("x-reset-token");
   const errors = [];
 
   // Validate token

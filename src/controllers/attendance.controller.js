@@ -33,6 +33,16 @@ exports.clockIn = asyncHandler(async (req, res) => {
 
   await attendance.save();
 
+  // Real-time update to Admin
+  const io = req.app.get("io");
+  if (io) {
+    io.to(adminId.toString()).emit("attendance:update", { 
+      type: "clock-in", 
+      userId, 
+      userName: req.user.name 
+    });
+  }
+
   res.status(200).json(ApiResponse.success("Clock-in successful", { attendance }));
 });
 
@@ -63,6 +73,17 @@ exports.clockOut = asyncHandler(async (req, res) => {
   }
 
   await attendance.save();
+
+  // Real-time update to Admin
+  const adminId = req.user.adminRef || req.user._id;
+  const io = req.app.get("io");
+  if (io) {
+    io.to(adminId.toString()).emit("attendance:update", { 
+      type: "clock-out", 
+      userId, 
+      userName: req.user.name 
+    });
+  }
 
   res.status(200).json(ApiResponse.success("Clock-out successful", { attendance }));
 });

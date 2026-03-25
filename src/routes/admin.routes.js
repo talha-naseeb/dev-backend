@@ -8,5 +8,6 @@ router.use(authenticate, isAdmin);
 
 // Routes
 router.get("/stats", adminController.getAdminStats);
+router.get("/trends", adminController.getAdminTrends);
 
 module.exports = router;

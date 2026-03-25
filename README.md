@@ -48,7 +48,7 @@ A robust authentication system built with Node.js, Express, and MongoDB, featuri
 3. Create a .env file in the root directory and add your configuration:
 
    ```env
-   PORT=5000
+   PORT=
    MONGODB_URI=mongodb://localhost:27017/auth-system
    JWT_SECRET=your_jwt_secret_key
 

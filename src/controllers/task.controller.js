@@ -16,12 +16,30 @@ exports.createTask = asyncHandler(async (req, res) => {
   // ensure assignedTo users exist and (if requester is manager) they are in manager's team
   const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
 
-  const isAdmin = req.user.role === "admin";
-  const adminId = isAdmin ? req.user._id : req.user.adminRef;
-
   if (!adminId) throw ApiError.forbidden("Workspace context missing");
 
+  const task = new Task({
+    title,
+    description,
+    assignedBy: req.user._id,
+    assignedTo: assignees,
+    startDate,
+    dueDate,
+    priority,
+    adminRef: adminId,
+  });
+
   await task.save();
+
+  // Real-time update to Admin
+  const io = req.app.get("io");
+  if (io) {
+    io.to(adminId.toString()).emit("task:update", { 
+      type: "task_created", 
+      taskId: task._id, 
+      title: task.title 
+    });
+  }
 
   // Log Activity
   await logActivity({
@@ -136,6 +154,16 @@ exports.updateTask = asyncHandler(async (req, res) => {
       userId: req.user._id,
       adminRef: adminId,
       metadata: { taskId: task._id, newStatus: updates.status },
+    });
+  }
+
+  // Real-time update to Admin
+  const io = req.app.get("io");
+  if (io) {
+    io.to(adminId.toString()).emit("task:update", { 
+      type: "task_updated", 
+      taskId: task._id, 
+      newStatus: updates.status || task.status 
     });
   }
 
