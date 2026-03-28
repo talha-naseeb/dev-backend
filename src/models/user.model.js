@@ -21,7 +21,6 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["super_admin", "admin", "manager", "employee", "developer"],
       default: "developer",
     },
     // Multi-tenancy: Every non-admin user must belong to an Admin's workspace
@@ -38,12 +37,15 @@ const userSchema = new mongoose.Schema(
       enum: ["free", "pro", "enterprise"],
       default: "free",
     },
+    totalUsersCreated: {
+      type: Number,
+      default: 0,
+    },
 
     mobileNumber: String,
     personalEmail: String,
     department: {
       type: String,
-      enum: ["Developer", "Designer", "Human Resource", "Quality Assurance", "Project Manager", "Sales", "Marketing"],
     },
     jobDescription: String,
     companyName: String,
@@ -64,7 +66,7 @@ const userSchema = new mongoose.Schema(
 
     resetPasswordToken: {
       type: String,
-      index: true, // Add index for fast lookup
+      index: true, 
     },
     resetPasswordExpires: {
       type: Date,

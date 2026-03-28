@@ -11,29 +11,31 @@ const validator = require("validator");
 
 exports.createEmployee = asyncHandler(async (req, res) => {
   // final server-side guard (double protection)
-  if (!["admin", "manager"].includes(req.user.role)) {
-    throw ApiError.forbidden("Only admin or manager can create employees");
+  if (req.user.role !== "admin") {
+    throw ApiError.forbidden("Only the Workspace Admin can create new users on this plan.");
   }
 
   const { name, email, department, contactNumber, companyEmail, jobDescription, role: requestedRole } = req.body;
 
   // Multi-tenancy context
-  const isAdmin = req.user.role === "admin";
-  const adminId = isAdmin ? req.user._id : req.user.adminRef;
-
-  if (!adminId) {
-    throw ApiError.forbidden("User is not associated with a valid workspace admin");
-  }
+  const adminId = req.user._id;
 
   // Get Admin's current limit
-  const workspaceAdmin = await User.findById(adminId);
-  if (!workspaceAdmin) throw ApiError.notFound("Workspace admin not found");
-
-  // Count existing employees/managers in this workspace
-  const currentCount = await User.countDocuments({ adminRef: adminId });
+  const workspaceAdmin = req.user; // already populated by auth middleware
   
-  if (currentCount >= workspaceAdmin.maxUsersLimit) {
-    throw ApiError.forbidden(`Limit reached: You have already created ${workspaceAdmin.maxUsersLimit} users. Please contact Super Admin to upgrade.`);
+  // 1. Check current active count for all tiers
+  const currentActiveCount = await User.countDocuments({ adminRef: adminId });
+  
+  // 2. Additional enforcement for Free Trial (Lifetime Limit)
+  if (workspaceAdmin.subscriptionTier === "free") {
+    if (workspaceAdmin.totalUsersCreated >= workspaceAdmin.maxUsersLimit) {
+      throw ApiError.forbidden(`Lifetime trial limit reached: You have already created ${workspaceAdmin.maxUsersLimit} unique users. Free trial accounts cannot rotate seats by deleting users. Please upgrade to Pro to manage more team members.`);
+    }
+  } else {
+    // Paid tiers use standard seat-based limits
+    if (currentActiveCount >= workspaceAdmin.maxUsersLimit) {
+      throw ApiError.forbidden(`Seat limit reached: Your current plan allows ${workspaceAdmin.maxUsersLimit} active users. Please upgrade your seat count to add more.`);
+    }
   }
 
   if (!validator.isEmail(email)) {
@@ -61,7 +63,7 @@ exports.createEmployee = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
-    role: requestedRole || "developer", // Default to developer
+    role: requestedRole || "developer", 
     adminRef: adminId,
     manager: managerId,
     companyEmail: companyEmail || email,
@@ -74,6 +76,9 @@ exports.createEmployee = asyncHandler(async (req, res) => {
   });
 
   await user.save();
+
+  // 3. Increment Admin lifetime counter (atomic)
+  await User.findByIdAndUpdate(adminId, { $inc: { totalUsersCreated: 1 } });
 
   // send combined email (credentials + verification link)
   await sendEmployeeCredentialsEmail(email, temporaryPassword, verificationToken);
@@ -95,7 +100,7 @@ exports.getTeam = asyncHandler(async (req, res) => {
   }
 
   const team = await User.find(query)
-    .select("name email role mobileNumber companyEmail department jobDescription manager status")
+    .select("name email role mobileNumber companyEmail department jobDescription manager status isVerified")
     .lean();
 
   res.status(200).json(ApiResponse.success("Team retrieved", { team }));
@@ -143,7 +148,7 @@ exports.updateEmployee = asyncHandler(async (req, res) => {
   Object.assign(employee, updates);
   await employee.save();
 
-  res.status(200).json(ApiResponse.success("Employee updated", { user: employee }));
+  res.status(200).json(ApiResponse.success("Employee updated"));
 });
 
 // Manager remove employee (soft delete recommended — here we perform hard delete for brevity)
