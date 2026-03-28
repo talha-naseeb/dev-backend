@@ -6,6 +6,8 @@ const passport = require("passport");
 const connectDB = require("./config/database");
 const routes = require("./routes");
 const errorHandler = require("./utils/helpers/errorHandler");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./config/swagger");
 
 const app = express();
 const server = require("http").createServer(app);
@@ -45,6 +47,12 @@ require("./config/passport");
 
 // Routes
 app.use("/api", routes);
+
+// Swagger API Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "Workspace Elite API Documentation"
+}));
 
 // Error handling middleware
 app.use(errorHandler);

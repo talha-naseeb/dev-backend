@@ -4,11 +4,128 @@ const { validateSignUpAuth, validateLoginAuth, validateForgotPassword, validateR
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /api/auth/signup:
+ *   post:
+ *     summary: Register a new workspace admin
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password]
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string }
+ *               password: { type: string, minLength: 6 }
+ *     responses:
+ *       201: { description: User created successfully }
+ *       400: { description: Invalid input or User already exists }
+ */
 router.post("/signup", validateSignUpAuth, signup);
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   post:
+ *     summary: Verify email with token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token: { type: string }
+ *     responses:
+ *       200: { description: Email verified }
+ *       400: { description: Invalid/Expired token }
+ */
 router.post("/verify-email", verifyUserEmail);
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Authenticate user and get token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email: { type: string }
+ *               password: { type: string }
+ *     responses:
+ *       200: { description: Login successful }
+ *       401: { description: Invalid credentials }
+ */
 router.post("/login", validateLoginAuth, login);
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Send password reset email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string }
+ *     responses:
+ *       200: { description: Reset link sent }
+ */
 router.post("/forgot-password", validateForgotPassword, forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/verify-reset-token:
+ *   get:
+ *     summary: Validate reset password token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Token is valid }
+ *       400: { description: Token is invalid }
+ */
 router.get("/verify-reset-token", verifyResetToken);
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Update password using reset token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, newPassword]
+ *             properties:
+ *               token: { type: string }
+ *               newPassword: { type: string }
+ *     responses:
+ *       200: { description: Password reset successful }
+ */
 router.post("/reset-password", validateResetPassword, resetPassword);
 
 module.exports = router;
