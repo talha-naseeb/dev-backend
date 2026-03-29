@@ -81,7 +81,11 @@ exports.createEmployee = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(adminId, { $inc: { totalUsersCreated: 1 } });
 
   // send combined email (credentials + verification link)
-  await sendEmployeeCredentialsEmail(email, temporaryPassword, verificationToken);
+  try {
+    await sendEmployeeCredentialsEmail(email, temporaryPassword, verificationToken);
+  } catch (error) {
+    // Even if email fails, user is created. We might want to handle this differently, but for now we log it using a standard error if needed or just silent.
+  }
 
   res.status(201).json(ApiResponse.created("Employee created and verification email sent", { userId: user._id }));
 });

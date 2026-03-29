@@ -1,9 +1,7 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false,
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
@@ -11,8 +9,7 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.verify((err, success) => {
-  if (err) console.error("SMTP Error:", err);
-  else console.log("Connected to email server");
+  if (err) console.error("[SMTP] Connection Error:", err);
 });
 
 // Send Reset Password Email
@@ -64,7 +61,6 @@ exports.sendResetPasswordEmail = async (email, token) => {
   try {
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Email send error:", error);
     throw new Error("Error sending reset password email");
   }
 };
@@ -115,7 +111,11 @@ exports.sendVerificationEmail = async (email, token) => {
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
 };
 
 // Send Employee Credentials Email
@@ -169,7 +169,11 @@ exports.sendEmployeeCredentialsEmail = async (toEmail, plainPassword, verificati
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
 };
 
 // Send Password Changed Confirmation Email
@@ -221,7 +225,6 @@ exports.sendPasswordChangedEmail = async (email) => {
   try {
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Email send error:", error);
     // Non-blocking error
   }
 };

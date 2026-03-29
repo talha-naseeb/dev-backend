@@ -1,5 +1,5 @@
 const User = require("../models/user.model");
-const { sendResetPasswordEmail, sendVerificationEmail, sendPasswordChangedEmail } = require("../utils/email");
+const { sendResetPasswordEmail, sendVerificationEmail, sendPasswordChangedEmail, sendEmployeeCredentialsEmail } = require("../utils/email");
 const ApiResponse = require("../utils/apiResponse");
 const ApiError = require("../utils/apiError");
 const asyncHandler = require("../utils/helpers/asyncHandler");
@@ -82,6 +82,46 @@ exports.verifyUserEmail = asyncHandler(async (req, res) => {
   await user.save();
 
   const response = ApiResponse.success("Email verified successfully");
+  res.status(response.statusCode).json(response);
+});
+
+// @desc    Resend verification email
+// @route   POST /api/auth/resend-verification
+// @access  Public
+exports.resendVerificationEmail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) throw ApiError.badRequest("Email is required");
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw ApiError.notFound("User not found");
+  }
+
+  if (user.isVerified) {
+    throw ApiError.badRequest("Email is already verified");
+  }
+
+  // Create new verification token
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+  const verificationExpires = Date.now() + 1000 * 60 * 60 * 24; // 24 hours for resend
+
+  user.emailVerificationToken = hashedToken;
+  user.emailVerificationExpires = verificationExpires;
+  await user.save();
+
+  // Send email based on role
+  if (user.role === "admin") {
+    await sendVerificationEmail(user.email, verificationToken);
+  } else {
+    // For employees/managers, we might want to send the credentials again or just the verification link
+    // Here we send verification link for brevity
+    await sendVerificationEmail(user.email, verificationToken);
+  }
+
+  const response = ApiResponse.success("Verification email resent successfully");
   res.status(response.statusCode).json(response);
 });
 

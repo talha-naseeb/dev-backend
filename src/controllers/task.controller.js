@@ -1,181 +1,276 @@
 const Task = require("../models/task.model");
-const User = require("../models/user.model");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
-const { logActivity } = require("../utils/activityLogger");
 
-// Create a task (manager/admin)
-exports.createTask = asyncHandler(async (req, res) => {
-  const { title, description, assignedTo, startDate, dueDate, priority } = req.body;
-  
-  if (!title || !assignedTo || (Array.isArray(assignedTo) && assignedTo.length === 0)) {
-    throw ApiError.badRequest("Title and assignedTo are required");
+// Helper to notify via Socket.io
+const notifyTaskUpdate = (req, event, data) => {
+  const io = req.app.get("io");
+  if (io && data.adminRef) {
+    // Notify the specific workspace room
+    io.to(String(data.adminRef)).emit(event, data);
+    console.log(`[Socket] Emitted ${event} to workspace ${data.adminRef}`);
   }
+};
 
-  // ensure assignedTo users exist and (if requester is manager) they are in manager's team
-  const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+/**
+ * @desc Create a new task
+ * @route POST /api/tasks
+ * @access Admin, Manager, Employee (can assign to self or others)
+ */
+exports.createTask = asyncHandler(async (req, res) => {
+  const { title, description, assignee, priority, dueDate, startDate } = req.body;
+  const adminId = req.user.role === "admin" ? req.user._id : req.user.adminRef;
 
-  if (!adminId) throw ApiError.forbidden("Workspace context missing");
+  if (!title) throw ApiError.badRequest("Task title is required");
 
   const task = new Task({
     title,
     description,
     assignedBy: req.user._id,
-    assignedTo: assignees,
-    startDate,
+    assignee: assignee || req.user._id, // default to self if not provided
+    priority: priority || "medium",
     dueDate,
-    priority,
+    startDate,
     adminRef: adminId,
+    history: [{
+      status: "todo",
+      updatedBy: req.user._id,
+      comment: "Task created"
+    }]
   });
 
   await task.save();
+  await task.populate("assignee", "name email");
+  await task.populate("assignedBy", "name email");
 
-  // Real-time update to Admin
-  const io = req.app.get("io");
-  if (io) {
-    io.to(adminId.toString()).emit("task:update", { 
-      type: "task_created", 
-      taskId: task._id, 
-      title: task.title 
-    });
+  // Notify assignee if not the creator
+  if (String(task.assignee._id) !== String(req.user._id)) {
+    notifyTaskUpdate(req, "task:assigned", task);
   }
 
-  // Log Activity
-  await logActivity({
-    type: "task_created",
-    message: `New task created: ${task.title}`,
-    userId: req.user._id,
-    adminRef: adminId,
-    metadata: { taskId: task._id },
-  });
-
-  res.status(201).json(ApiResponse.created("Task created", { task }));
+  res.status(201).json(ApiResponse.created("Task created successfully", { task }));
 });
 
-// Get tasks (filter by role)
+/**
+ * @desc Get tasks based on user role
+ * @route GET /api/tasks
+ * @access Private
+ */
 exports.getTasks = asyncHandler(async (req, res) => {
-  const q = req.query || {};
-  const filter = {};
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
 
-  // Employees: tasks assigned to them
-  if (req.user.role === "employee" || req.user.role === "developer" || req.user.role === "designer") {
-    filter.assignedTo = req.user._id;
-  }
+  let query = { adminRef: adminId };
 
-  // Manager: tasks assigned by them OR assigned to their team (optional query)
-  if (req.user.role === "manager") {
-    // allow ?mine=true to get only tasks assignedBy this manager
-    if (q.mine === "true") {
-      filter.assignedBy = req.user._id;
-    } else {
-      // tasks assigned to manager's team OR created by manager
-      const team = await User.find({ manager: req.user._id }).select("_id");
-      const teamIds = team.map((t) => t._id);
-      filter.$or = [{ assignedBy: req.user._id }, { assignedTo: { $in: teamIds } }];
-    }
-  }
+  // If Employee, only see tasks assigned to them OR created by them
+  if (req.user.role === "developer" || req.user.role === "employee") {
+    query.$or = [
+      { assignee: req.user._id },
+      { assignedBy: req.user._id }
+    ];
+  } 
+  // If Manager, see their own tasks + tasks assigned to their team (if applicable)
+  // For now, Managers see everything in the workspace or we can restrict further if needed.
+  // Given the user's prompt "one admin can multiple teams and each team is under the manager", 
+  // we might want to filter by team here if the Task model had a 'teamId'. 
+  // Since it doesn't yet, we'll let Managers see all workspace tasks for now, as they are "sub-admins".
 
-  // QA and Admin: can see all tasks (admin can use query filters)
-  if (req.user.role === "admin" || req.user.role === "qualityAssurance") {
-    const isAdmin = req.user.role === "admin";
-    const adminId = isAdmin ? req.user._id : req.user.adminRef;
-    filter.adminRef = adminId;
-
-    // optional filters: status, priority, assignedTo
-    if (q.status) filter.status = q.status;
-    if (q.priority) filter.priority = q.priority;
-    if (q.assignedTo) filter.assignedTo = q.assignedTo;
-  }
-
-  const tasks = await Task.find(filter).populate("assignedBy", "name email role").populate("assignedTo", "name email role").populate("reviewedBy", "name email role").sort({ createdAt: -1 });
+  const tasks = await Task.find(query)
+    .populate("assignee", "name email role")
+    .populate("assignedBy", "name email role")
+    .populate("comments.user", "name email role")
+    .populate("history.updatedBy", "name email role")
+    .sort({ createdAt: -1 });
 
   res.status(200).json(ApiResponse.success("Tasks retrieved", { tasks }));
 });
 
-// Update task fields (title, description, dueDate, assignedTo, status, remarks)
-exports.updateTask = asyncHandler(async (req, res) => {
+/**
+ * @desc Update task status (Optimistic UI Support)
+ * @route PATCH /api/tasks/:id/status
+ * @access Private
+ */
+exports.updateTaskStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const { status, comment } = req.body;
 
   const task = await Task.findById(id);
   if (!task) throw ApiError.notFound("Task not found");
 
-  const isAdmin = req.user.role === "admin";
-  const adminId = isAdmin ? req.user._id : req.user.adminRef;
-
+  // Verify workspace access
+  const adminId = req.user.role === "admin" ? req.user._id : req.user.adminRef;
   if (String(task.adminRef) !== String(adminId)) {
-    throw ApiError.forbidden("Access denied: Task belongs to a different workspace");
+    throw ApiError.forbidden("Access denied to this task");
   }
 
-  // Permission checks:
-  // - Employees can update only status or remarks if they are assigned
-  if (req.user.role === "employee" || req.user.role === "developer" || req.user.role === "designer") {
-    if (!task.assignedTo.map(String).includes(String(req.user._id))) {
-      throw ApiError.forbidden("You are not assigned to this task");
-    }
-    // allow only limited updates
-    const allowed = ["status", "remarks"];
-    const dirty = Object.keys(updates).filter((k) => !allowed.includes(k));
-    if (dirty.length) throw ApiError.forbidden("Employees can only update status or remarks");
+  const oldStatus = task.status;
+  task.status = status;
+  
+  // Track history
+  task.history.push({
+    status,
+    updatedBy: req.user._id,
+    comment: comment || `Status changed from ${oldStatus} to ${status}`
+  });
+
+  if (status === "completed") {
+    task.completedAt = new Date();
   }
 
-  // - Manager can edit if they are the creator or manager of assignees (handled earlier for create)
-  if (req.user.role === "manager") {
-    if (String(task.assignedBy) !== String(req.user._id)) {
-      // allow manager to update tasks if they manage the assignees
-      // ensure all new assignees are under manager
-      if (updates.assignedTo) {
-        const newAssignees = Array.isArray(updates.assignedTo) ? updates.assignedTo : [updates.assignedTo];
-        const invalid = await User.findOne({ _id: { $in: newAssignees }, manager: { $ne: req.user._id } });
-        if (invalid) throw ApiError.forbidden("You can only assign tasks to your team members");
-      }
-    }
-  }
-
-  // QA: can set status to qa-approved/qa-rejected
-  if (req.user.role === "qualityAssurance") {
-    if (updates.status && !["qa-approved", "qa-rejected"].includes(updates.status)) {
-      throw ApiError.forbidden("QA can only change status to qa-approved or qa-rejected");
-    }
-    if (updates.status) task.reviewedBy = req.user._id;
-  }
-
-  // apply updates
-  Object.assign(task, updates);
-  if (updates.status === "completed") task.completedAt = new Date();
   await task.save();
+  await task.populate("assignee", "name email");
+  await task.populate("assignedBy", "name email");
 
-  // Log Activity for status change
-  if (updates.status) {
-    await logActivity({
-      type: "task_updated",
-      message: `Task "${task.title}" status changed to ${updates.status}`,
-      userId: req.user._id,
-      adminRef: adminId,
-      metadata: { taskId: task._id, newStatus: updates.status },
-    });
-  }
+  // Notify everyone in the workspace about the status change
+  notifyTaskUpdate(req, "task:status-updated", task);
 
-  // Real-time update to Admin
-  const io = req.app.get("io");
-  if (io) {
-    io.to(adminId.toString()).emit("task:update", { 
-      type: "task_updated", 
-      taskId: task._id, 
-      newStatus: updates.status || task.status 
-    });
-  }
-
-  const populated = await Task.findById(task._id).populate("assignedBy", "name email").populate("assignedTo", "name email").populate("reviewedBy", "name email");
-
-  res.status(200).json(ApiResponse.success("Task updated", { task: populated }));
+  res.status(200).json(ApiResponse.success("Task status updated", { task }));
 });
 
-// Get single task
-exports.getTaskById = asyncHandler(async (req, res) => {
+/**
+ * @desc Reassign task
+ * @route PATCH /api/tasks/:id/reassign
+ * @access Admin, Manager, or Creator
+ */
+exports.reassignTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const task = await Task.findById(id).populate("assignedBy", "name email").populate("assignedTo", "name email").populate("reviewedBy", "name email");
+  const { assignee, comment } = req.body;
+
+  const task = await Task.findById(id);
   if (!task) throw ApiError.notFound("Task not found");
-  res.status(200).json(ApiResponse.success("Task retrieved", { task }));
+
+  // Permission check: Only Admin, the original creator, or the current manager/assignee can reassign
+  const isCreator = String(task.assignedBy) === String(req.user._id);
+  const isAssignee = String(task.assignee) === String(req.user._id);
+  const isAdmin = req.user.role === "admin";
+  const isManager = req.user.role === "manager"; // Potentially check if they manage the assignee/creator
+
+  if (!isAdmin && !isManager && !isCreator && !isAssignee) {
+    throw ApiError.forbidden("You do not have permission to reassign this task");
+  }
+
+  const oldAssignee = task.assignee;
+  task.assignee = assignee;
+  
+  task.history.push({
+    status: task.status,
+    updatedBy: req.user._id,
+    comment: comment || `Task reassigned`
+  });
+
+  await task.save();
+  await task.populate("assignee", "name email");
+  await task.populate("assignedBy", "name email");
+
+  // Notify new assignee
+  notifyTaskUpdate(req, "task:assigned", task);
+
+  res.status(200).json(ApiResponse.success("Task reassigned successfully", { task }));
+});
+
+/**
+ * @desc Update task details (Admin/Manager only)
+ * @route PUT /api/tasks/:id
+ * @access Admin or Manager
+ */
+exports.updateTask = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { title, description, priority, dueDate, assignee } = req.body;
+
+  const task = await Task.findById(id);
+  if (!task) throw ApiError.notFound("Task not found");
+
+  // Permission check: Only Admin or Manager
+  if (req.user.role !== "admin" && req.user.role !== "manager") {
+    throw ApiError.forbidden("Only Admins and Managers can edit core task details");
+  }
+
+  // Verify workspace access
+  const adminId = req.user.role === "admin" ? req.user._id : req.user.adminRef;
+  if (String(task.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied to this task");
+  }
+
+  if (title) task.title = title;
+  if (description !== undefined) task.description = description;
+  if (priority) task.priority = priority;
+  if (dueDate) task.dueDate = dueDate;
+  if (assignee) task.assignee = assignee;
+
+  task.history.push({
+    status: task.status,
+    updatedBy: req.user._id,
+    comment: `Task details updated by ${req.user.role}`
+  });
+
+  await task.save();
+  await task.populate("assignee", "name email role");
+  await task.populate("assignedBy", "name email role");
+
+  notifyTaskUpdate(req, "task:updated", task);
+
+  res.status(200).json(ApiResponse.success("Task updated successfully", { task }));
+});
+
+/**
+ * @desc Delete task
+ * @route DELETE /api/tasks/:id
+ * @access Admin or Creator
+ */
+exports.deleteTask = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const task = await Task.findById(id);
+
+  if (!task) throw ApiError.notFound("Task not found");
+
+  const isAdmin = req.user.role === "admin";
+  const isCreator = String(task.assignedBy) === String(req.user._id);
+
+  if (!isAdmin && !isCreator) {
+    throw ApiError.forbidden("Only the creator or an Admin can delete this task");
+  }
+
+  await Task.deleteOne({ _id: id });
+  
+  // Notify workspace about deletion
+  notifyTaskUpdate(req, "task:deleted", { _id: id, adminRef: task.adminRef });
+
+  res.status(200).json(ApiResponse.success("Task deleted successfully"));
+});
+
+/**
+ * @desc Add a comment to a task
+ * @route POST /api/tasks/:id/comments
+ * @access Private
+ */
+exports.addComment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { text } = req.body;
+
+  if (!text) throw ApiError.badRequest("Comment text is required");
+
+  const task = await Task.findById(id);
+  if (!task) throw ApiError.notFound("Task not found");
+
+  // Verify workspace access
+  const adminId = req.user.role === "admin" ? req.user._id : req.user.adminRef;
+  if (String(task.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied to this task");
+  }
+
+  task.comments.push({
+    user: req.user._id,
+    text,
+  });
+
+  await task.save();
+  await task.populate("comments.user", "name email role");
+  await task.populate("assignee", "name email role");
+  await task.populate("assignedBy", "name email role");
+
+  // Notify workspace about the new comment
+  notifyTaskUpdate(req, "task:comment-added", task);
+
+  res.status(200).json(ApiResponse.success("Comment added successfully", { task }));
 });

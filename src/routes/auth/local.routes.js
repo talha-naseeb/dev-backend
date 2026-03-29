@@ -1,5 +1,5 @@
 const express = require("express");
-const { signup, login, forgotPassword, verifyResetToken, resetPassword, verifyUserEmail } = require("../../controllers/auth.controller");
+const { signup, login, forgotPassword, verifyResetToken, resetPassword, verifyUserEmail, resendVerificationEmail } = require("../../controllers/auth.controller");
 const { validateSignUpAuth, validateLoginAuth, validateForgotPassword, validateResetPassword } = require("../../middleware/auth.middleware");
 
 const router = express.Router();
@@ -69,6 +69,27 @@ router.post("/verify-email", verifyUserEmail);
  *       401: { description: Invalid credentials }
  */
 router.post("/login", validateLoginAuth, login);
+
+/**
+ * @swagger
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string }
+ *     responses:
+ *       200: { description: Verification email resent }
+ *       404: { description: User not found }
+ */
+router.post("/resend-verification", resendVerificationEmail);
 
 /**
  * @swagger
