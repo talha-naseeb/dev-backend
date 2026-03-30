@@ -43,7 +43,6 @@ const userSchema = new mongoose.Schema(
     },
 
     mobileNumber: String,
-    personalEmail: String,
     department: {
       type: String,
     },

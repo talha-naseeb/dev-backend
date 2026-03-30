@@ -53,6 +53,7 @@ exports.createTicket = asyncHandler(async (req, res) => {
     userId: req.user._id,
     adminRef: adminId,
     metadata: { ticketId: ticket._id },
+    io: req.app.get("io"),
   });
 
   res.status(201).json(ApiResponse.created("Ticket created", { ticket }));
@@ -137,6 +138,7 @@ exports.assignTicket = asyncHandler(async (req, res) => {
     userId: req.user._id,
     adminRef: adminId,
     metadata: { ticketId: ticket._id, assignedTo },
+    io: req.app.get("io"),
   });
 
   res.status(200).json(ApiResponse.success("Ticket assigned", { ticket }));

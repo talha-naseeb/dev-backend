@@ -1,6 +1,6 @@
 const express = require("express");
-const { signup, login, forgotPassword, verifyResetToken, resetPassword, verifyUserEmail, resendVerificationEmail } = require("../../controllers/auth.controller");
-const { validateSignUpAuth, validateLoginAuth, validateForgotPassword, validateResetPassword } = require("../../middleware/auth.middleware");
+const { signup, login, forgotPassword, verifyResetToken, resetPassword, verifyUserEmail, resendVerificationEmail, updateProfile, changePassword } = require("../../controllers/auth.controller");
+const { validateSignUpAuth, validateLoginAuth, validateForgotPassword, validateResetPassword, authenticate, validateUpdateProfile, validateChangePassword } = require("../../middleware/auth.middleware");
 
 const router = express.Router();
 
@@ -147,6 +147,53 @@ router.get("/verify-reset-token", verifyResetToken);
  *     responses:
  *       200: { description: Password reset successful }
  */
-router.post("/reset-password", validateResetPassword, resetPassword);
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   put:
+ *     summary: Update current user profile
+ *     tags: [Auth]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               mobileNumber: { type: string }
+ *               personalEmail: { type: string }
+ *               department: { type: string }
+ *               jobDescription: { type: string }
+ *     responses:
+ *       200: { description: Profile updated successfully }
+ *       401: { description: Unauthorized }
+ */
+router.patch("/profile", authenticate, validateUpdateProfile, updateProfile);
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   put:
+ *     summary: Change password for current user
+ *     tags: [Auth]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newPassword: { type: string }
+ *     responses:
+ *       200: { description: Password updated successfully }
+ *       400: { description: Validation error }
+ *       401: { description: Invalid current password }
+ */
+router.patch("/change-password", authenticate, validateChangePassword, changePassword);
 
 module.exports = router;

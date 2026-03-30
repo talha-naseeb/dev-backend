@@ -135,7 +135,7 @@ exports.getEmployee = asyncHandler(async (req, res) => {
 // Manager update employee (limited fields)
 exports.updateEmployee = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const allowed = ["name", "mobileNumber", "companyEmail", "personalEmail", "department", "jobDescription", "role"];
+  const allowed = ["name", "mobileNumber", "companyEmail", "department", "jobDescription", "role"];
   const updates = {};
   allowed.forEach((f) => {
     if (req.body[f] !== undefined && req.body[f] !== null && req.body[f] !== "") updates[f] = req.body[f];

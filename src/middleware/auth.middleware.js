@@ -192,3 +192,46 @@ exports.authorize = (...roles) => {
 exports.isAdmin = exports.authorize("admin", "super_admin");
 exports.isSuperAdmin = exports.authorize("super_admin");
 exports.isManager = exports.authorize("manager", "admin", "super_admin");
+// 🔹 Profile Update Validation
+exports.validateUpdateProfile = (req, res, next) => {
+  const { name, mobileNumber } = req.body;
+  const errors = [];
+
+  if (name && !validator.isLength(name, { min: 2, max: 50 })) {
+    errors.push("Name must be between 2 and 50 characters");
+  }
+
+  if (mobileNumber && !validator.isMobilePhone(mobileNumber)) {
+    errors.push("Please provide a valid mobile number");
+  }
+
+  if (errors.length > 0) {
+    throw ApiError.badRequest(errors);
+  }
+
+  next();
+};
+
+// 🔹 Change Password Validation
+exports.validateChangePassword = (req, res, next) => {
+  const { currentPassword, newPassword } = req.body;
+  const errors = [];
+
+  if (!currentPassword) {
+    errors.push("Current password is required");
+  }
+
+  if (!newPassword || !validator.isLength(newPassword, { min: 6 })) {
+    errors.push("New password must be at least 6 characters long");
+  }
+
+  if (newPassword === currentPassword) {
+    errors.push("New password must be different from current password");
+  }
+
+  if (errors.length > 0) {
+    throw ApiError.badRequest(errors);
+  }
+
+  next();
+};

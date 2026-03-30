@@ -234,3 +234,54 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   const response = ApiResponse.success("Password reset successful");
   res.status(response.statusCode).json(response);
 });
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+exports.updateProfile = asyncHandler(async (req, res) => {
+  const { name, mobileNumber, department, jobDescription } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (!user) throw ApiError.notFound("User not found");
+
+  if (name) user.name = name;
+  if (mobileNumber) user.mobileNumber = mobileNumber;
+  if (department) user.department = department;
+  if (jobDescription) user.jobDescription = jobDescription;
+
+  await user.save();
+
+  const response = ApiResponse.success("Profile updated successfully", {
+    user: {
+      name: user.name,
+      email: user.email,
+      mobileNumber: user.mobileNumber,
+      department: user.department,
+      jobDescription: user.jobDescription,
+      role: user.role,
+    },
+  });
+  res.status(response.statusCode).json(response);
+});
+
+// @desc    Change password
+// @route   PUT /api/auth/change-password
+// @access  Private
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (!user) throw ApiError.notFound("User not found");
+
+  // Verify current password
+  await comparePassword(currentPassword, user.password, "Invalid current password");
+
+  // Hash and save new password
+  user.password = await hashPassword(newPassword);
+  await user.save();
+
+  // Send security email
+  await sendPasswordChangedEmail(user.email);
+
+  const response = ApiResponse.success("Password updated successfully");
+  res.status(response.statusCode).json(response);
+});

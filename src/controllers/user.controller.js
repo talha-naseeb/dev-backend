@@ -9,7 +9,7 @@ const { uploadToCloudinary } = require("../utils/cloudinaryUpload");
 // @access  Private (Verified Users)
 
 exports.getUserProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).select("-password");
+  const user = await User.findById(req.user._id).select("-password -_id");
   if (!user) throw ApiError.notFound("User not found");
 
   const response = ApiResponse.success("Profile retrieved successfully", { user });
@@ -20,7 +20,7 @@ exports.getUserProfile = asyncHandler(async (req, res) => {
 // @route   PUT /api/users/profile
 // @access  Private (Verified Users)
 exports.updateUserProfile = asyncHandler(async (req, res) => {
-  const allowedFields = ["name", "mobileNumber", "personalEmail", "jobDescription", "department", "companyName"];
+  const allowedFields = ["name", "mobileNumber", "jobDescription", "department", "companyName"];
 
   const updates = {};
   allowedFields.forEach((field) => {
