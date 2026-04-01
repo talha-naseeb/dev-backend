@@ -21,5 +21,6 @@ const attendanceSchema = new mongoose.Schema(
 );
 
 attendanceSchema.index({ user: 1, date: 1 }, { unique: true }); // Ensure one record per user per date
+attendanceSchema.index({ adminRef: 1, date: -1 });
 
 module.exports = mongoose.model("Attendance", attendanceSchema);

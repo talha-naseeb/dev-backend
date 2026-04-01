@@ -10,6 +10,8 @@ const adminRoutes = require("./admin.routes");
 const attendanceRoutes = require("./user/attendance.routes");
 const integrationRoutes = require("./integration.routes");
 const activityRoutes = require("./activity.routes");
+const { authRateLimiter, generalRateLimiter } = require("../middleware/rateLimit.middleware");
+const { getDbStatus } = require("../config/database");
 
 const router = express.Router();
 
@@ -17,28 +19,36 @@ const router = express.Router();
 router.use((req, res, next) => {
   const start = Date.now();
   const origin = req.headers.origin || req.headers.referer || req.ip;
-  
-  res.on('finish', () => {
+
+  res.on("finish", () => {
     const duration = Date.now() - start;
     console.log(`[API HIT] ${req.method} ${req.originalUrl} | Status: ${res.statusCode} | Time: ${duration}ms | From: ${origin}`);
   });
-  
+
   next();
 });
 
 // Overall API Health Check Endpoint
 router.get("/health", (req, res) => {
-  res.status(200).json({ 
-    success: true, 
-    message: "API routing is healthy", 
+  const db = getDbStatus();
+  const statusCode = db === "connected" ? 200 : 503;
+
+  res.status(statusCode).json({
+    success: statusCode === 200,
+    status: statusCode === 200 ? "ok" : "degraded",
+    db,
+    message: "API routing is healthy",
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
 // Auth routes
-router.use("/auth", localAuthRoutes);
-router.use("/auth", oauthRoutes);
+router.use("/auth", authRateLimiter, localAuthRoutes);
+router.use("/auth", authRateLimiter, oauthRoutes);
+
+// General API rate limiting (exclude health endpoint)
+router.use(generalRateLimiter);
 
 // User routes
 router.use("/users", userProfileRoutes);
@@ -50,6 +60,5 @@ router.use("/admin", adminRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/integrations", integrationRoutes);
 router.use("/activities", activityRoutes);
-
 
 module.exports = router;

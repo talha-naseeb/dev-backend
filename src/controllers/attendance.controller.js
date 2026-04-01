@@ -2,6 +2,13 @@ const Attendance = require("../models/attendance.model");
 const ApiResponse = require("../utils/apiResponse");
 const ApiError = require("../utils/apiError");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { broadcastAdminStats } = require("../utils/stats-helper");
+
+const triggerStatsBroadcast = (req, adminId) => {
+  broadcastAdminStats(req, adminId).catch((error) => {
+    console.error("[Attendance] Failed to broadcast admin stats:", error);
+  });
+};
 
 // @desc    Clock-In (Create or update attendance for today)
 // @route   POST /api/attendance/clock-in
@@ -42,6 +49,8 @@ exports.clockIn = asyncHandler(async (req, res) => {
       userName: req.user.name 
     });
   }
+
+  triggerStatsBroadcast(req, adminId);
 
   res.status(200).json(ApiResponse.success("Clock-in successful", { attendance }));
 });
@@ -84,6 +93,8 @@ exports.clockOut = asyncHandler(async (req, res) => {
       userName: req.user.name 
     });
   }
+
+  triggerStatsBroadcast(req, adminId);
 
   res.status(200).json(ApiResponse.success("Clock-out successful", { attendance }));
 });

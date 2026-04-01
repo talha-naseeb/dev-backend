@@ -7,6 +7,30 @@ const crypto = require("crypto");
 const { generateToken } = require("../utils/jwt");
 const { hashPassword, comparePassword } = require("../utils/helpers/authHelpers");
 
+const clearExpiredResetToken = async (userId) => {
+  await User.updateOne(
+    { _id: userId },
+    {
+      $unset: {
+        resetPasswordToken: 1,
+        resetPasswordExpires: 1,
+      },
+    }
+  );
+};
+
+const clearExpiredVerificationToken = async (userId) => {
+  await User.updateOne(
+    { _id: userId },
+    {
+      $unset: {
+        emailVerificationToken: 1,
+        emailVerificationExpires: 1,
+      },
+    }
+  );
+};
+
 // @desc    Register a new user
 // @route   POST /api/auth/signup
 // @access  Public
@@ -69,10 +93,14 @@ exports.verifyUserEmail = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
-    emailVerificationExpires: { $gt: Date.now() },
   });
 
   if (!user) {
+    throw ApiError.badRequest("Invalid or expired verification link");
+  }
+
+  if (!user.emailVerificationExpires || user.emailVerificationExpires.getTime() < Date.now()) {
+    await clearExpiredVerificationToken(user._id);
     throw ApiError.badRequest("Invalid or expired verification link");
   }
 
@@ -187,10 +215,14 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     resetPasswordToken: hashedToken,
-    resetPasswordExpires: { $gt: Date.now() },
   });
 
   if (!user) {
+    throw ApiError.badRequest("Invalid or expired token");
+  }
+
+  if (!user.resetPasswordExpires || user.resetPasswordExpires.getTime() < Date.now()) {
+    await clearExpiredResetToken(user._id);
     throw ApiError.badRequest("Invalid or expired token");
   }
 
@@ -215,10 +247,14 @@ exports.resetPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     resetPasswordToken: hashedToken,
-    resetPasswordExpires: { $gt: Date.now() },
   });
 
   if (!user) {
+    throw ApiError.badRequest("Invalid or expired token");
+  }
+
+  if (!user.resetPasswordExpires || user.resetPasswordExpires.getTime() < Date.now()) {
+    await clearExpiredResetToken(user._id);
     throw ApiError.badRequest("Invalid or expired token");
   }
 

@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { hashPassword } = require("../utils/helpers/authHelpers");
 const { sendEmployeeCredentialsEmail } = require("../utils/email");
 const validator = require("validator");
+const { broadcastAdminStats } = require("../utils/stats-helper");
 
 // Manager creates an employee (or Admin can use same endpoint)
 
@@ -22,14 +23,16 @@ exports.createEmployee = asyncHandler(async (req, res) => {
 
   // Get Admin's current limit
   const workspaceAdmin = req.user; // already populated by auth middleware
-  
+
   // 1. Check current active count for all tiers
   const currentActiveCount = await User.countDocuments({ adminRef: adminId });
-  
+
   // 2. Additional enforcement for Free Trial (Lifetime Limit)
   if (workspaceAdmin.subscriptionTier === "free") {
     if (workspaceAdmin.totalUsersCreated >= workspaceAdmin.maxUsersLimit) {
-      throw ApiError.forbidden(`Lifetime trial limit reached: You have already created ${workspaceAdmin.maxUsersLimit} unique users. Free trial accounts cannot rotate seats by deleting users. Please upgrade to Pro to manage more team members.`);
+      throw ApiError.forbidden(
+        `Lifetime trial limit reached: You have already created ${workspaceAdmin.maxUsersLimit} unique users. Free trial accounts cannot rotate seats by deleting users. Please upgrade to Pro to manage more team members.`,
+      );
     }
   } else {
     // Paid tiers use standard seat-based limits
@@ -63,7 +66,7 @@ exports.createEmployee = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
-    role: requestedRole || "developer", 
+    role: requestedRole || "developer",
     adminRef: adminId,
     manager: managerId,
     companyEmail: companyEmail || email,
@@ -81,13 +84,36 @@ exports.createEmployee = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(adminId, { $inc: { totalUsersCreated: 1 } });
 
   // send combined email (credentials + verification link)
+  let mailDeliveryWarning = null;
+
   try {
     await sendEmployeeCredentialsEmail(email, temporaryPassword, verificationToken);
+    user.emailSent = true;
+    user.emailDeliveryError = undefined;
   } catch (error) {
-    // Even if email fails, user is created. We might want to handle this differently, but for now we log it using a standard error if needed or just silent.
+    console.error("Failed to send employee credentials email:", error);
+    user.emailSent = false;
+    user.emailDeliveryError = error.message || "Email delivery failed";
+    mailDeliveryWarning = "Email delivery failed; credentials not sent to user. Please retry manually or call the resend endpoint.";
+    // persist flag to record that email has not been sent.
   }
 
-  res.status(201).json(ApiResponse.created("Employee created and verification email sent", { userId: user._id }));
+  await user.save();
+
+  try {
+    await broadcastAdminStats(req, adminId);
+  } catch (err) {
+    console.error("Failed to broadcast admin stats after employee creation:", err);
+  }
+
+  const responseData = {
+    userId: user._id,
+    ...(mailDeliveryWarning ? { warning: mailDeliveryWarning } : {}),
+  };
+
+  const responseMessage = mailDeliveryWarning ? "Employee created (email delivery failed)." : "Employee created and verification email sent";
+
+  res.status(201).json(ApiResponse.created(responseMessage, responseData));
 });
 
 // Manager view their team
@@ -103,9 +129,7 @@ exports.getTeam = asyncHandler(async (req, res) => {
     query.manager = req.user._id;
   }
 
-  const team = await User.find(query)
-    .select("name email role mobileNumber companyEmail department jobDescription manager status isVerified")
-    .lean();
+  const team = await User.find(query).select("name email role mobileNumber companyEmail department jobDescription manager status isVerified").lean();
 
   res.status(200).json(ApiResponse.success("Team retrieved", { team }));
 });
@@ -165,6 +189,14 @@ exports.deleteEmployee = asyncHandler(async (req, res) => {
     throw ApiError.forbidden("Not your team member");
   }
 
+  const adminRef = employee.adminRef;
   await User.deleteOne({ _id: id });
+
+  try {
+    await broadcastAdminStats(req, adminRef);
+  } catch (err) {
+    console.error("Failed to broadcast admin stats after employee deletion:", err);
+  }
+
   res.status(200).json(ApiResponse.success("Employee deleted"));
 });

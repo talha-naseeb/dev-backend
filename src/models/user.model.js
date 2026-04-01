@@ -80,24 +80,9 @@ const userSchema = new mongoose.Schema(
 
 // Compound index for reset password queries
 userSchema.index({ resetPasswordToken: 1, resetPasswordExpires: 1 });
-
-// TTL Index: Auto-delete reset tokens after expiration
-userSchema.index(
-  { resetPasswordExpires: 1 },
-  {
-    expireAfterSeconds: 0,
-    partialFilterExpression: { resetPasswordToken: { $exists: true } },
-  }
-);
-
-// TTL Index: Auto-delete verification tokens after expiration
-userSchema.index(
-  { emailVerificationExpires: 1 },
-  {
-    expireAfterSeconds: 0,
-    partialFilterExpression: { emailVerificationToken: { $exists: true } },
-  }
-);
+userSchema.index({ emailVerificationToken: 1, emailVerificationExpires: 1 });
+userSchema.index({ adminRef: 1 });
+userSchema.index({ adminRef: 1, manager: 1 });
 
 const User = mongoose.model("User", userSchema);
 module.exports = User;

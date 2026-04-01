@@ -2,6 +2,7 @@ const Task = require("../models/task.model");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { broadcastAdminStats } = require("../utils/stats-helper");
 
 // Helper to notify via Socket.io
 const notifyTaskUpdate = (req, event, data) => {
@@ -48,6 +49,8 @@ exports.createTask = asyncHandler(async (req, res) => {
   if (String(task.assignee._id) !== String(req.user._id)) {
     notifyTaskUpdate(req, "task:assigned", task);
   }
+
+  await broadcastAdminStats(req, adminId);
 
   res.status(201).json(ApiResponse.created("Task created successfully", { task }));
 });
@@ -124,6 +127,8 @@ exports.updateTaskStatus = asyncHandler(async (req, res) => {
 
   // Notify everyone in the workspace about the status change
   notifyTaskUpdate(req, "task:status-updated", task);
+
+  await broadcastAdminStats(req, adminId);
 
   res.status(200).json(ApiResponse.success("Task status updated", { task }));
 });
@@ -235,6 +240,8 @@ exports.deleteTask = asyncHandler(async (req, res) => {
   
   // Notify workspace about deletion
   notifyTaskUpdate(req, "task:deleted", { _id: id, adminRef: task.adminRef });
+
+  await broadcastAdminStats(req, task.adminRef);
 
   res.status(200).json(ApiResponse.success("Task deleted successfully"));
 });

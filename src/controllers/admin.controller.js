@@ -1,8 +1,7 @@
 const User = require("../models/user.model");
-const Attendance = require("../models/attendance.model");
-const Task = require("../models/task.model");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { calculateAdminStats } = require("../utils/stats-helper");
 
 // @desc    Get Admin Workspace stats (user counts, limits, etc.)
 // @route   GET /api/admin/stats
@@ -10,35 +9,7 @@ const asyncHandler = require("../utils/helpers/asyncHandler");
 exports.getAdminStats = asyncHandler(async (req, res) => {
   const adminId = req.user._id;
 
-  // 1. Total Employees in this workspace
-  const totalUsers = await User.countDocuments({ adminRef: adminId });
-  
-  // 2. Active Sessions (Clocked in today but not yet clocked out)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const activeSessions = await Attendance.countDocuments({
-    adminRef: adminId,
-    date: { $gte: today },
-    logoutTime: { $exists: false }
-  });
-
-  // 3. Active Projects (Unique tasks that are in-progress or pending)
-  const activeProjects = await Task.countDocuments({
-    adminRef: adminId,
-    status: { $in: ["pending", "in-progress", "in-review"] }
-  });
-  
-  // 4. Get the admin's limit (already implemented)
-  const admin = await User.findById(adminId).select("maxUsersLimit");
-
-  const stats = {
-    totalUsers,
-    maxUsersLimit: admin.maxUsersLimit || 3,
-    activeSessions,
-    activeProjects,
-    systemHealth: "Active",
-  };
+  const stats = await calculateAdminStats(adminId);
 
   const response = ApiResponse.success("Admin stats retrieved successfully", { stats });
   res.status(response.statusCode).json(response);
