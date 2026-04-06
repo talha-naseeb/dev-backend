@@ -66,7 +66,12 @@ exports.logoutUser = asyncHandler(async (req, res) => {
 // @route   GET /api/users/all
 // @access  Private/Admin
 exports.getAllUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().select("-password");
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  if (!adminId) throw ApiError.forbidden("Workspace context missing");
+
+  const users = await User.find({ adminRef: adminId }).select("-password");
   const response = ApiResponse.success("Users retrieved successfully", { users });
   res.status(response.statusCode).json(response);
 });

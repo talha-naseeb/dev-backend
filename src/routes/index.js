@@ -11,6 +11,7 @@ const attendanceRoutes = require("./user/attendance.routes");
 const integrationRoutes = require("./integration.routes");
 const activityRoutes = require("./activity.routes");
 const { authRateLimiter, generalRateLimiter } = require("../middleware/rateLimit.middleware");
+const { validateUserEmail } = require("../middleware/auth.middleware");
 const { getDbStatus } = require("../config/database");
 
 const router = express.Router();
@@ -52,13 +53,13 @@ router.use(generalRateLimiter);
 
 // User routes
 router.use("/users", userProfileRoutes);
-router.use("/tasks", taskRoutes);
+router.use("/tasks", validateUserEmail, taskRoutes);
 router.use("/tickets", ticketRoutes);
 router.use("/manager", managerRoutes);
-router.use("/super-admin", superAdminRoutes);
-router.use("/admin", adminRoutes);
-router.use("/attendance", attendanceRoutes);
-router.use("/integrations", integrationRoutes);
+router.use("/super-admin", validateUserEmail, superAdminRoutes);
+router.use("/admin", validateUserEmail, adminRoutes);
+router.use("/attendance", validateUserEmail, attendanceRoutes);
+router.use("/integrations", validateUserEmail, integrationRoutes);
 router.use("/activities", activityRoutes);
 
 module.exports = router;

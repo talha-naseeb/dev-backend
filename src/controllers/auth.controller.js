@@ -74,8 +74,6 @@ exports.signup = asyncHandler(async (req, res) => {
     await sendVerificationEmail(user.email, verificationToken);
   }
 
-  console.log("verifyToken:", verificationToken);
-
   const response = ApiResponse.created("User registered successfully. Please verify your email.");
   res.status(response.statusCode).json(response);
 });
@@ -173,7 +171,6 @@ exports.login = asyncHandler(async (req, res) => {
 
   const token = generateToken(user);
   const response = ApiResponse.success("Login successful", { token });
-  console.log("Token Generated:", token);
   res.status(response.statusCode).json(response);
 });
 
@@ -207,7 +204,6 @@ exports.verifyResetToken = asyncHandler(async (req, res) => {
   const token = req.header("x-reset-token");
 
   if (!token) {
-    console.log("Verify Request Headers:", req.headers);
     throw ApiError.badRequest("Valid reset token is required");
   }
 
@@ -239,7 +235,6 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   const token = req.header("x-reset-token");
 
   if (!token) {
-    console.log("Reset Request Headers:", req.headers);
     throw ApiError.badRequest("Valid reset token is required");
   }
 

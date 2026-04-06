@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
+      enum: ["super_admin", "admin", "manager", "developer"],
       default: "developer",
     },
     // Multi-tenancy: Every non-admin user must belong to an Admin's workspace
@@ -71,10 +72,37 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
+    googleId: {
+      type: String,
+      sparse: true,
+    },
+
     lastLogin: Date,
   },
   {
     timestamps: true,
+    toJSON: {
+      transform(doc, ret) {
+        delete ret.password;
+        delete ret.emailVerificationToken;
+        delete ret.emailVerificationExpires;
+        delete ret.resetPasswordToken;
+        delete ret.resetPasswordExpires;
+        delete ret.__v;
+        return ret;
+      },
+    },
+    toObject: {
+      transform(doc, ret) {
+        delete ret.password;
+        delete ret.emailVerificationToken;
+        delete ret.emailVerificationExpires;
+        delete ret.resetPasswordToken;
+        delete ret.resetPasswordExpires;
+        delete ret.__v;
+        return ret;
+      },
+    },
   }
 );
 

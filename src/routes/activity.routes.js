@@ -1,6 +1,6 @@
 const express = require("express");
 const { getActivities } = require("../controllers/activity.controller");
-const passport = require("passport");
+const { authenticate } = require("../middleware/auth.middleware");
 
 const router = express.Router();
 
@@ -15,6 +15,6 @@ const router = express.Router();
  *     responses:
  *       200: { description: List of recent activities }
  */
-router.get("/", passport.authenticate("jwt", { session: false }), getActivities);
+router.get("/", authenticate, getActivities);
 
 module.exports = router;

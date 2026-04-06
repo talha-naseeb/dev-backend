@@ -3,6 +3,7 @@ const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
 const { broadcastAdminStats } = require("../utils/stats-helper");
+const { notifySlack, taskAssignedMessage, taskStatusMessage } = require("../utils/slack");
 
 // Helper to notify via Socket.io
 const notifyTaskUpdate = (req, event, data) => {
@@ -48,6 +49,7 @@ exports.createTask = asyncHandler(async (req, res) => {
   // Notify assignee if not the creator
   if (String(task.assignee._id) !== String(req.user._id)) {
     notifyTaskUpdate(req, "task:assigned", task);
+    notifySlack(adminId, taskAssignedMessage(task.title, task.assignee.name));
   }
 
   await broadcastAdminStats(req, adminId);
@@ -127,6 +129,7 @@ exports.updateTaskStatus = asyncHandler(async (req, res) => {
 
   // Notify everyone in the workspace about the status change
   notifyTaskUpdate(req, "task:status-updated", task);
+  notifySlack(adminId, taskStatusMessage(task.title, status));
 
   await broadcastAdminStats(req, adminId);
 

@@ -1,24 +1,23 @@
 const express = require("express");
 const passport = require("passport");
+const { generateToken } = require("../../utils/jwt");
 
 const router = express.Router();
 
-/* OAuth routes commented out for future implementation
-// Google OAuth routes
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+// Initiate Google OAuth
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
 
-router.get("/google/callback", passport.authenticate("google", { failureRedirect: "/login" }), (req, res) => {
-  const token = req.user.generateAuthToken();
-  res.redirect(`/auth-success?token=${token}`);
-});
-
-// Microsoft OAuth routes
-router.get("/microsoft", passport.authenticate("microsoft", { scope: ["user.read"] }));
-
-router.get("/microsoft/callback", passport.authenticate("microsoft", { failureRedirect: "/login" }), (req, res) => {
-  const token = req.user.generateAuthToken();
-  res.redirect(`/auth-success?token=${token}`);
-});
-*/
+// Google OAuth callback
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${process.env.FRONTEND_URL}/login?error=oauth_failed`,
+    session: false,
+  }),
+  (req, res) => {
+    const token = generateToken(req.user);
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+  }
+);
 
 module.exports = router;

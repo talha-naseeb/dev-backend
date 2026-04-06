@@ -7,6 +7,7 @@ const { hashPassword } = require("../utils/helpers/authHelpers");
 const { sendEmployeeCredentialsEmail } = require("../utils/email");
 const validator = require("validator");
 const { broadcastAdminStats } = require("../utils/stats-helper");
+const { notifySlack, employeeOnboardedMessage } = require("../utils/slack");
 
 // Manager creates an employee (or Admin can use same endpoint)
 
@@ -17,6 +18,10 @@ exports.createEmployee = asyncHandler(async (req, res) => {
   }
 
   const { name, email, department, contactNumber, companyEmail, jobDescription, role: requestedRole } = req.body;
+
+  if (requestedRole && ["admin", "super_admin"].includes(requestedRole)) {
+    throw ApiError.forbidden("Cannot assign this role");
+  }
 
   // Multi-tenancy context
   const adminId = req.user._id;
@@ -113,6 +118,8 @@ exports.createEmployee = asyncHandler(async (req, res) => {
 
   const responseMessage = mailDeliveryWarning ? "Employee created (email delivery failed)." : "Employee created and verification email sent";
 
+  notifySlack(adminId, employeeOnboardedMessage(name, email));
+
   res.status(201).json(ApiResponse.created(responseMessage, responseData));
 });
 
@@ -165,10 +172,22 @@ exports.updateEmployee = asyncHandler(async (req, res) => {
     if (req.body[f] !== undefined && req.body[f] !== null && req.body[f] !== "") updates[f] = req.body[f];
   });
 
+  if (updates.role && ["admin", "super_admin"].includes(updates.role)) {
+    throw ApiError.forbidden("Cannot assign this role");
+  }
+
   const employee = await User.findById(id);
   if (!employee) throw ApiError.notFound("User not found");
 
-  // manager can update only their employees
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  // Ensure employee belongs to this workspace
+  if (String(employee.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied: User belongs to a different workspace");
+  }
+
+  // manager can update only their employees (strict check skip if admin)
   if (req.user.role === "manager" && String(employee.manager) !== String(req.user._id)) {
     throw ApiError.forbidden("Not your team member");
   }
@@ -184,6 +203,14 @@ exports.deleteEmployee = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const employee = await User.findById(id);
   if (!employee) throw ApiError.notFound("User not found");
+
+  const isAdmin = req.user.role === "admin";
+  const adminId = isAdmin ? req.user._id : req.user.adminRef;
+
+  // Ensure employee belongs to this workspace
+  if (String(employee.adminRef) !== String(adminId)) {
+    throw ApiError.forbidden("Access denied: User belongs to a different workspace");
+  }
 
   if (req.user.role === "manager" && String(employee.manager) !== String(req.user._id)) {
     throw ApiError.forbidden("Not your team member");

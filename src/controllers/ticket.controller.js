@@ -4,6 +4,7 @@ const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const asyncHandler = require("../utils/helpers/asyncHandler");
 const { logActivity } = require("../utils/activityLogger");
+const { notifySlack, ticketCreatedMessage } = require("../utils/slack");
 
 // Create ticket (employee/manager/admin)
 exports.createTicket = asyncHandler(async (req, res) => {
@@ -55,6 +56,8 @@ exports.createTicket = asyncHandler(async (req, res) => {
     metadata: { ticketId: ticket._id },
     io: req.app.get("io"),
   });
+
+  notifySlack(adminId, ticketCreatedMessage(ticket.title));
 
   res.status(201).json(ApiResponse.created("Ticket created", { ticket }));
 });
@@ -115,7 +118,7 @@ exports.assignTicket = asyncHandler(async (req, res) => {
 
   // permission checks similar to createTicket
   if (req.user.role === "manager") {
-    if (String(target.manager) !== String(req.user._1d)) throw ApiError.forbidden("You can only assign to your team");
+    if (String(target.manager) !== String(req.user._id)) throw ApiError.forbidden("You can only assign to your team");
   }
   if (req.user.role !== "manager" && req.user.role !== "admin") {
     const requesterManager = String(req.user.manager || "");

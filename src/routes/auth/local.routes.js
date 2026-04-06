@@ -110,6 +110,7 @@ router.post("/resend-verification", resendVerificationEmail);
  *       200: { description: Reset link sent }
  */
 router.post("/forgot-password", validateForgotPassword, forgotPassword);
+router.post("/reset-password", validateResetPassword, resetPassword);
 
 /**
  * @swagger

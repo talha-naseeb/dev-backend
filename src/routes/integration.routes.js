@@ -68,5 +68,6 @@ router.post("/toggle", integrationController.toggleIntegration);
  *       200: { description: Update successful }
  */
 router.patch("/:type", integrationController.updateConfig);
+router.post("/:type/test", integrationController.testWebhook);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const ApiResponse = require("../utils/apiResponse");
 const ApiError = require("../utils/apiError");
 const asyncHandler = require("../utils/helpers/asyncHandler");
 const { broadcastAdminStats } = require("../utils/stats-helper");
+const { broadcastActiveUsers } = require("../sockets/presence");
 
 const triggerStatsBroadcast = (req, adminId) => {
   broadcastAdminStats(req, adminId).catch((error) => {
@@ -50,6 +51,7 @@ exports.clockIn = asyncHandler(async (req, res) => {
     });
   }
 
+  broadcastActiveUsers(io, adminId.toString());
   triggerStatsBroadcast(req, adminId);
 
   res.status(200).json(ApiResponse.success("Clock-in successful", { attendance }));
@@ -94,6 +96,7 @@ exports.clockOut = asyncHandler(async (req, res) => {
     });
   }
 
+  broadcastActiveUsers(io, adminId.toString());
   triggerStatsBroadcast(req, adminId);
 
   res.status(200).json(ApiResponse.success("Clock-out successful", { attendance }));

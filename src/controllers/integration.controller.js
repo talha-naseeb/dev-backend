@@ -2,6 +2,7 @@ const Integration = require("../models/integration.model");
 const ApiResponse = require("../utils/apiResponse");
 const ApiError = require("../utils/apiError");
 const asyncHandler = require("../utils/helpers/asyncHandler");
+const { sendSlackNotification } = require("../utils/slack");
 
 // @desc    Get all active integrations for the workspace
 // @route   GET /api/integrations
@@ -39,6 +40,31 @@ exports.toggleIntegration = asyncHandler(async (req, res) => {
   }
 
   const response = ApiResponse.success(`${type} integration ${status}`, { integration });
+  res.status(response.statusCode).json(response);
+});
+
+// @desc    Test integration webhook (e.g., send test Slack message)
+// @route   POST /api/integrations/:type/test
+// @access  Admin only
+exports.testWebhook = asyncHandler(async (req, res) => {
+  const { type } = req.params;
+  const adminId = req.user._id;
+
+  if (type !== "slack") throw ApiError.badRequest("Webhook test only supported for Slack");
+
+  const integration = await Integration.findOne({ adminRef: adminId, type, status: "active" });
+  if (!integration?.config?.webhookUrl) {
+    throw ApiError.badRequest("No webhook URL configured. Save a webhook URL first.");
+  }
+
+  const result = await sendSlackNotification(
+    integration.config.webhookUrl,
+    "✅ Test message from *Workspace Elite* — your Slack integration is working!"
+  );
+
+  if (!result.success) throw ApiError.badRequest(`Webhook test failed: ${result.error}`);
+
+  const response = ApiResponse.success("Test message sent to Slack successfully");
   res.status(response.statusCode).json(response);
 });
 

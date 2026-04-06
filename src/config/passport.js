@@ -1,69 +1,53 @@
 const passport = require("passport");
-// Commented out OAuth strategies for future implementation
-/*
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const MicrosoftStrategy = require("passport-microsoft").Strategy;
 const User = require("../models/user.model");
 
-// Google OAuth Strategy
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        // 1. Try find by googleId
         let user = await User.findOne({ googleId: profile.id });
 
         if (!user) {
-          user = new User({
-            googleId: profile.id,
-            name: profile.displayName,
-            email: profile.emails[0].value,
-          });
-          await user.save();
+          const email = profile.emails?.[0]?.value;
+          if (!email) return done(new Error("No email returned from Google"), null);
+
+          // 2. Try link to existing account by email
+          user = await User.findOne({ email });
+          if (user) {
+            user.googleId = profile.id;
+            if (!user.profileImage && profile.photos?.[0]?.value) {
+              user.profileImage = profile.photos[0].value;
+            }
+            await user.save();
+          } else {
+            // 3. Create new admin account
+            user = await User.create({
+              name: profile.displayName,
+              email,
+              googleId: profile.id,
+              password: require("crypto").randomBytes(32).toString("hex"), // unusable random password
+              role: "admin",
+              isVerified: true,
+              maxUsersLimit: 3,
+              subscriptionTier: "free",
+              profileImage: profile.photos?.[0]?.value || undefined,
+            });
+          }
         }
 
-        done(null, user);
+        return done(null, user);
       } catch (error) {
-        done(error, null);
+        return done(error, null);
       }
     }
   )
 );
 
-// Microsoft OAuth Strategy
-passport.use(
-  new MicrosoftStrategy(
-    {
-      clientID: process.env.MICROSOFT_CLIENT_ID,
-      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-      callbackURL: "/api/auth/microsoft/callback",
-      scope: ["user.read"],
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        let user = await User.findOne({ microsoftId: profile.id });
-
-        if (!user) {
-          user = new User({
-            microsoftId: profile.id,
-            name: profile.displayName,
-            email: profile.emails[0].value,
-          });
-          await user.save();
-        }
-
-        done(null, user);
-      } catch (error) {
-        done(error, null);
-      }
-    }
-  )
-);
-*/
-
-// Export passport for use in the application
 module.exports = passport;

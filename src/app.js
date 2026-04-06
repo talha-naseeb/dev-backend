@@ -95,35 +95,16 @@ io.use((socket, next) => {
   }
 
   socket.data.userId = decoded._id;
+  socket.data.name = decoded.name;
   socket.data.role = decoded.role;
+  socket.data.profileImage = decoded.profileImage;
   socket.data.workspaceId = decoded.role === "admin" ? decoded._id : decoded.adminRef || null;
 
   return next();
 });
 
-io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
-
-  if (socket.data.workspaceId) {
-    socket.join(String(socket.data.workspaceId));
-  }
-
-  socket.on("join-workspace", (workspaceId, callback) => {
-    if (!socket.data.workspaceId || String(workspaceId) !== String(socket.data.workspaceId)) {
-      socket.emit("workspace:error", { message: "Unauthorized workspace access" });
-      if (typeof callback === "function") callback({ ok: false });
-      return;
-    }
-
-    socket.join(String(workspaceId));
-    console.log(`User joined workspace: ${workspaceId}`);
-    if (typeof callback === "function") callback({ ok: true });
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected");
-  });
-});
+const initializeSockets = require("./sockets");
+initializeSockets(io);
 
 // Connect to MongoDB
 connectDB();
